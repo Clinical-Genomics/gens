@@ -17,7 +17,7 @@ class InteractiveCanvas {
     this.y = 10 + 2 * lineMargin + this.titleMargin; // Y-position for first plot
     this.canvasHeight = 2 + this.y + 2 * (this.leftRightPadding + this.plotHeight); // Height for whole canvas
     this.moveImg = null; // Holds a copy of latest drawn scene, used for dragging interactive canvas
-    this.borderColor = 'gray'; // Color of border
+    this.borderColor = '#666'; // Color of border
     this.titleColor = 'black'; // Color of titles/legends
 
     this.markerElem = document.getElementById('interactive-marker');
@@ -238,6 +238,7 @@ class InteractiveCanvas {
   // Draw values for interactive canvas
   drawInteractiveContent () {
     this.loadingDiv.style.display = "block";
+    console.time("getcoverage");
 
     $.getJSON($SCRIPT_ROOT + '/_getcoverage', {
       region: this.inputField.value,
@@ -255,6 +256,8 @@ class InteractiveCanvas {
       log2_y_start: this.log2.yStart,
       log2_y_end: this.log2.yEnd
     }, (result) => {
+
+      console.timeEnd('getcoverage');
       // Clear canvas
       this.contentCanvas.getContext('2d').clearRect(0, 0,
         this.contentCanvas.width, this.contentCanvas.height);
