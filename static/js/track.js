@@ -108,21 +108,20 @@ class Track {
 
   // Inserts a hover text for a track
   hoverText(text, left, top, width, height, zIndex, latest_pos) {
-    // Make div wider for more mouse over space
-    let minWidth = 1;
-    if (parseInt(width) < minWidth && (parseInt(left) - minWidth / 2) > latest_pos) {
-      left = parseInt(left) - minWidth / 2 + 'px';
-      width = minWidth + 'px';
-    }
+    let pad = 1; 
 
     let title = document.createElement('div');
     title.title = text;
-    title.style.left = left;
-    title.style.top = top;
-    title.style.width = width;
-    title.style.height = height;
+    title.style.left = left-2-pad+"px"; // Move 2 pixels to align
+    title.style.top = top-2+"px";
+    title.style.width = width+2+pad+"px";
+    title.style.height = height+"px";
     title.style.position = 'absolute';
     title.style.zIndex = zIndex;
+    title.onmouseenter = function() { 
+      extendFeature(this);
+      this.onmouseleave=function() { collapseFeature();}
+    };
     this.trackTitle.appendChild(title);
     return parseInt(left + width);
   }
@@ -186,4 +185,19 @@ class Track {
     this.trackContext.stroke();
     this.trackContext.restore();
   }
+}
+
+function extendFeature(elem) {
+  ic.markerElem.style.left = parseFloat(elem.style.left)+89+"px";
+  ic.markerElem.style.backgroundColor = "#abb2";
+  ic.markerElem.style.width = parseFloat(elem.style.width)-2+"px";
+  ic.markerElem.style.top = "126px";
+  ic.markerElem.style.height = 365+parseFloat(elem.style.top)+"px";
+  ic.markerElem.style.zIndex = "100";
+
+  $('#interactive-marker').fadeIn(300);
+}
+
+function collapseFeature() {
+  ic.markerElem.style.display = "none";
 }

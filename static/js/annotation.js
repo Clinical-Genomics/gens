@@ -114,10 +114,10 @@ class Annotation extends Track {
 
         // Add tooltip title for whole gene
         latest_track_end = this.hoverText(geneText,
-          scale * (start - result['start_pos']) + 'px',
-          textYPos - this.featureHeight / 2 + 'px',
-          scale * (end - start) + 'px',
-          this.featureHeight + textSize + 'px',
+          scale * (start - result['start_pos']),
+          textYPos - this.featureHeight / 2,
+          scale * (end - start),
+          this.featureHeight + textSize,
           0, latest_height);
 
         // Draw arrows

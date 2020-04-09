@@ -85,10 +85,10 @@ class Transcript extends Track {
 
         // Add tooltip title for whole gene
         latest_track_end = this.hoverText(geneText,
-          titleMargin + scale * (start - result['start_pos']) + 'px',
-          titleMargin + textYPos - this.featureHeight / 2 + 'px',
-          scale * (end - start) + 'px',
-          this.featureHeight + textSize + 'px',
+          titleMargin + scale * (start - result['start_pos']),
+          titleMargin + textYPos - this.featureHeight / 2,
+          scale * (end - start),
+          this.featureHeight + textSize,
           0, latest_track_end);
 
         // Go trough feature list and draw geometries
@@ -116,10 +116,10 @@ class Transcript extends Track {
 
               // Add tooltip title for whole gene
               latest_track_end = this.hoverText(exonText,
-                titleMargin + scale * (feature['start'] - result['start_pos']) + 'px',
-                titleMargin + textYPos - this.featureHeight / 2 + 'px',
-                scale * (feature['end'] - feature['start']) + 'px',
-                this.featureHeight + 'px',
+                titleMargin + scale * (feature['start'] - result['start_pos']),
+                titleMargin + textYPos - this.featureHeight / 2,
+                scale * (feature['end'] - feature['start']),
+                this.featureHeight,
                 1, latest_track_end);
 
               this.drawBox(scale * (feature['start'] - result['start_pos']),

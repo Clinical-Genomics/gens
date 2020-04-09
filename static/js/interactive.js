@@ -20,6 +20,8 @@ class InteractiveCanvas {
     this.borderColor = 'gray'; // Color of border
     this.titleColor = 'black'; // Color of titles/legends
 
+    this.markerElem = document.getElementById('interactive-marker');
+
     // BAF values
     this.baf = {
       yStart: 1.0, // Start value for y axis
