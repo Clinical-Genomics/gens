@@ -5,7 +5,6 @@ import logging
 import os
 from datetime import date
 from logging.config import dictConfig
-
 import connexion
 from flask import abort, render_template, request
 from flask_compress import Compress
