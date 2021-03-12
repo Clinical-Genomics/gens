@@ -22,6 +22,32 @@ gens_bp = Blueprint(
 )
 
 
+#
+@gens_bp.route("/dev", methods=["GET"])
+def dev_case():
+    # Set whether to get HG37 och HG38 files
+    with current_app.app_context():
+        hg_filedir, hg_type = get_hg_type()
+
+    annotation = request.args.get(
+        "annotation", current_app.config["DEFAULT_ANNOTATION_TRACK"]
+    )
+
+    return render_template(
+        "dev.html",
+        ui_colors=current_app.config["UI_COLORS"],
+        chrom='11',
+        start=11,
+        end=100,
+        sample_name='dev',
+        hg_type=hg_type,
+        hg_filedir=hg_filedir,
+        todays_date=date.today(),
+        annotation=annotation,
+        selected_variant='other',
+        version=version,
+    )
+
 @gens_bp.route("/", defaults={"sample_name": ""})
 @gens_bp.route("/<path:sample_name>", methods=["GET"])
 @cache.cached(timeout=60)
