@@ -44,7 +44,7 @@ LOG = logging.getLogger(__name__)
 compress = Compress()
 
 
-def create_app():
+def create_app(config=None):
     """Create and setup Gens application."""
     application = connexion.FlaskApp(
         __name__, specification_dir="openapi/", options={"swagger_ui": True}
@@ -53,6 +53,8 @@ def create_app():
     app = application.app
     # configure app
     app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+    if config:
+        app.config.update(config)
     app.config.from_object("gens.config")
     if os.environ.get("GENS_CONFIG") is None:
         LOG.warning("No user configuration set, set path with $GENS_CONFIG variable")
