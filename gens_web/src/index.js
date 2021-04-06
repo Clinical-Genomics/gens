@@ -7,7 +7,7 @@ import reportWebVitals from './reportWebVitals';
 
 ReactDOM.render(
   <React.StrictMode>
-    <Navbar />
+    <Navbar sampleName="foo" version="1.1.2" hgType="38" />
     <App />
   </React.StrictMode>,
   document.getElementById('root')
