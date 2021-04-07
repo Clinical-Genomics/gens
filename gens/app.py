@@ -12,7 +12,7 @@ from flask_compress import Compress
 from flask_debugtoolbar import DebugToolbarExtension
 
 from .__version__ import VERSION as version
-from .blueprints import about_bp, gens_bp
+from .blueprints import about_bp, gens_bp, login_bp
 from .cache import cache
 from .db import init_database
 from .errors import generic_error, sample_not_found
@@ -21,7 +21,6 @@ from .io import BAF_SUFFIX, COV_SUFFIX, _get_filepath
 from .utils import get_hg_type
 from flask_wtf.csrf import CSRFProtect
 
-toolbar = DebugToolbarExtension()
 dictConfig(
     {
         "version": 1,
@@ -42,7 +41,9 @@ dictConfig(
     }
 )
 LOG = logging.getLogger(__name__)
+toolbar = DebugToolbarExtension()
 compress = Compress()
+csrf = CSRFProtect()
 
 
 def create_app(config=None):
@@ -95,4 +96,5 @@ def register_errors(app):
 def register_blueprints(app):
     """Register blueprints."""
     app.register_blueprint(gens_bp)
+    app.register_blueprint(login_bp)
     app.register_blueprint(about_bp)

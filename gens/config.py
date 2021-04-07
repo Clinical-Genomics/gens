@@ -16,3 +16,4 @@ UI_COLORS = {
     "variants": {"del": "#C84630", "dup": "#4C6D94"},
     "transcripts": {"strand_pos": "#aa4362", "strand_neg": "#43AA8B"},
 }
+GENS_SECRET = 'secret'

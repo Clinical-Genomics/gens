@@ -22,8 +22,7 @@ gens_bp = Blueprint(
 )
 
 
-@gens_bp.route("/", defaults={"sample_name": ""})
-@gens_bp.route("/<path:sample_name>", methods=["GET"])
+@gens_bp.route("/<path:sample_name>", methods=["GET", "POST"])
 @cache.cached(timeout=60)
 def display_case(sample_name):
     """
@@ -33,6 +32,8 @@ def display_case(sample_name):
     if not sample_name:
         LOG.error("No sample requested")
         abort(404)
+    # process token
+    auth_token = request.args.get("token", None)
 
     # Set whether to get HG37 och HG38 files
     with current_app.app_context():

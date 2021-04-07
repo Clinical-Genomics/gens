@@ -1,0 +1,28 @@
+<!-- GENS login template -->
+
+{% extends "layout.html" %}
+{% block title %}Visualization{% endblock title %}
+{% block css_style %}
+    {{ super() }}
+    <link rel='stylesheet' href='{{ url_for('gens.static', filename='gens.min.css') }}' type='text/css'>
+{% endblock css_style %}
+{% block scripts %}
+    <script src='{{ url_for('gens.static', filename='gens.min.js') }}'></script>
+{% endblock scripts %}
+
+{% block body %}
+    <div>
+        <form method="post" id="login" action="/login">
+            {{ form.csrf_token }}
+            <div>{{ form.username.label }}: {{ form.username(class="css_class") }}</div>
+            {% if form.username.error %}
+                <ul class="errors">{% for error in form.username.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <div>{{ form.password.label }}: {{ form.password() }}</div>
+            {% if form.password.errors %}
+                <ul class="errors">{% for error in form.password.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+            {% endif %}
+            <input type="submit" value="Log in">
+        </form>
+    </div>
+{% endblock body %}
