@@ -19,6 +19,7 @@ from .errors import generic_error, sample_not_found
 from .graph import parse_region_str
 from .io import BAF_SUFFIX, COV_SUFFIX, _get_filepath
 from .utils import get_hg_type
+from flask_wtf.csrf import CSRFProtect
 
 toolbar = DebugToolbarExtension()
 dictConfig(
@@ -80,6 +81,7 @@ def initialize_extensions(app):
     """Initialize flask extensions."""
     cache.init_app(app)
     compress.init_app(app)
+    csrf.init_app(app)
 
 
 def register_errors(app):
