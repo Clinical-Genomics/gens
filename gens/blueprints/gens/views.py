@@ -55,6 +55,7 @@ def display_case(sample_name):
         if sample.overview_file:  # verify json if it exists
             _get_filepath(sample.overview_file)
     except FileNotFoundError as err:
+        LOG.error(str(err))
         raise err
     else:
         LOG.info(f"Found BAF and COV files for {sample_name}")
