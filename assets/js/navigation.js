@@ -2,13 +2,13 @@ import { get } from './fetch.js'
 import { CHROMOSOMES } from './track.js'
 import { chromSizes } from './helper.js'
 
-function redrawEvent({ region, exclude = [], ...kwargs }) {
+function redrawEvent ({ region, exclude = [], ...kwargs }) {
   return new CustomEvent(
     'draw', { detail: { region: region, exclude: exclude, ...kwargs } }
   )
 }
 
-function drawEventManager({ target, throttleTime }) {
+function drawEventManager ({ target, throttleTime }) {
   const tracks = [
     ...target.querySelectorAll('.track-container'),
     target.querySelector('#cytogenetic-ideogram')
@@ -30,7 +30,7 @@ function drawEventManager({ target, throttleTime }) {
   }
 }
 
-export function setupDrawEventManager({ target, throttleTime = 20 }) {
+export function setupDrawEventManager ({ target, throttleTime = 20 }) {
   const manager = drawEventManager({ target, throttleTime })
   target.addEventListener('draw', (event) => {
     manager(event)
@@ -42,7 +42,7 @@ export function readInputField() {
   return parseRegionDesignation(field.value)
 }
 
-function updateInputField({ chrom, start, end }) {
+function updateInputField ({ chrom, start, end }) {
   const field = document.getElementById('region-field')
   field.value = `${chrom}:${start}-${end}`
   field.placeholder = field.value
@@ -54,7 +54,7 @@ function updateInputField({ chrom, start, end }) {
 // eg 1:12-220 --> 1, 12 220
 // 1: --> 1, null, null
 // 1 --> 1, null, null
-export function parseRegionDesignation(regionString) {
+export function parseRegionDesignation (regionString) {
   if (regionString.includes(':')) {
     const [chromosome, position] = regionString.split(':')
     // verify chromosome
@@ -68,7 +68,7 @@ export function parseRegionDesignation(regionString) {
   }
 }
 
-export async function limitRegionToChromosome({ chrom, start, end, genomeBuild = '38' }) {
+export async function limitRegionToChromosome ({ chrom, start, end, genomeBuild = '38' }) {
   // assert that start/stop are within start and end of chromosome
   const sizes = await chromSizes(genomeBuild)
   const chromSize = sizes[chrom]
@@ -93,7 +93,7 @@ export async function limitRegionToChromosome({ chrom, start, end, genomeBuild =
   return { chrom: chrom, start: Math.round(updStart), end: Math.round(updEnd) }
 }
 
-export async function drawTrack({
+export async function drawTrack ({
   chrom, start, end, genomeBuild = '38',
   exclude = [], force = false, ...kwargs
 }) {
@@ -113,7 +113,7 @@ export async function drawTrack({
 // If query is a regionString draw the relevant region
 // If input is a chromosome display entire chromosome
 // Else query api for genes with that name and draw that region
-export function queryRegionOrGene(query, genomeBuild = 38) {
+export function queryRegionOrGene (query, genomeBuild = 38) {
   if (query.includes(':')) {
     drawTrack(parseRegionDesignation(query))
   } else if (CHROMOSOMES.includes(query)) {
@@ -133,21 +133,21 @@ export function queryRegionOrGene(query, genomeBuild = 38) {
 }
 
 // goto the next chromosome
-export function nextChromosome() {
+export function nextChromosome () {
   const position = readInputField()
   const chrom = CHROMOSOMES[CHROMOSOMES.indexOf(position.chrom) + 1]
   drawTrack({ chrom: chrom, start: 1, end: null })
 }
 
 // goto the previous chromosome
-export function previousChromosome() {
+export function previousChromosome () {
   const position = readInputField()
   const chrom = CHROMOSOMES[CHROMOSOMES.indexOf(position.chrom) - 1]
   drawTrack({ chrom: chrom, start: 1, end: null })
 }
 
 // Pan whole canvas and tracks to the left
-export function panTracks(direction = 'left', speed = 0.1) {
+export function panTracks (direction = 'left', speed = 0.1) {
   const pos = readInputField()
   const distance = Math.abs(Math.floor(speed * (pos.end - pos.start)))
   if (direction === 'left') {
@@ -166,7 +166,7 @@ export function panTracks(direction = 'left', speed = 0.1) {
 }
 
 // Handle zoom in button click
-export function zoomIn() {
+export function zoomIn () {
   const pos = readInputField()
   const factor = Math.floor((pos.end - pos.start) * 0.2)
   pos.start += factor
@@ -175,7 +175,7 @@ export function zoomIn() {
 }
 
 // Handle zoom out button click
-export function zoomOut() {
+export function zoomOut () {
   const pos = readInputField()
   const factor = Math.floor((pos.end - pos.start) / 3)
   pos.start = (pos.start - factor) < 1 ? 1 : pos.start - factor
@@ -183,11 +183,29 @@ export function zoomOut() {
   drawTrack({ chrom: pos.chrom, start: pos.start, end: pos.end, exclude: ['cytogenetic-ideogram'], drawTitle: false })
 }
 
+// Handle zoom in Y button click
+export function zoomInY () {
+  console.log('dispatching zoom in Y')
+  const zoomYEvent = new CustomEvent(
+    'zoomY', { detail: { direction: 'in' } }
+  )
+  document.getElementById('interactive-static').dispatchEvent(zoomYEvent)
+}
+
+// Handle zoom out Y button click
+export function zoomOutY () {
+  console.log('dispatching zoom out Y')
+  const zoomYEvent = new CustomEvent(
+    'zoomY', { detail: { direction: 'out' } }
+  )
+  document.getElementById('interactive-static').dispatchEvent(zoomYEvent)
+}
+
 // Dispatch dispatch an event to draw a given region
 // Redraw events can be limited to certain tracks or include all tracks
 class KeyLogger {
   // Records keypress combinations
-  constructor(bufferSize = 10) {
+  constructor (bufferSize = 10) {
     // Setup variables
     this.bufferSize = bufferSize
     this.lastKeyTime = Date.now()
@@ -213,14 +231,14 @@ class KeyLogger {
     })
   }
 
-  recentKeys(timeWindow) {
+  recentKeys (timeWindow) {
     // get keys pressed within a window of time.
     const currentTime = Date.now()
     return this.keyBuffer.filter(keyEvent =>
       timeWindow > currentTime - keyEvent.time)
   }
 
-  lastKeypressTime() {
+  lastKeypressTime () {
     return this.keyBuffer[this.keyBuffer.length - 1] - Date.now()
   }
 }
@@ -272,10 +290,18 @@ document.addEventListener('keyevent', event => {
       case '+':
         zoomIn()
         break
+      case '?':
+      case 'W':
+        zoomInY()
+        break
       case 'ArrowDown':
       case 's':
       case '-':
         zoomOut()
+        break
+      case 'S':
+      case '_':
+        zoomOutY()
         break
       default:
     }

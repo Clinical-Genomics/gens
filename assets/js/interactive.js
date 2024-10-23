@@ -38,9 +38,9 @@ export class InteractiveCanvas extends BaseScatterTrack {
 
     // Log2 ratio values
     this.log2 = {
-      yStart: 4.0, // Start value for y axis
-      yEnd: -4.0, // End value for y axis
-      step: 1.0, // Step value for drawing ticks along y-axis
+      yStart: 2.0, // Start value for y axis
+      yEnd: -2.0, // End value for y axis
+      step: 0.5, // Step value for drawing ticks along y-axis
       color: '#000000' // Viz color
     }
 
@@ -180,24 +180,49 @@ export class InteractiveCanvas extends BaseScatterTrack {
       this.markingRegion = false
       this.drag = false
     })
+    // when user asks for Y zoom
+    this.staticCanvas.addEventListener('zoomY', event => {
+      this.clearStaticContent()
+      if (event.detail.direction === 'out') {
+        this.log2.yStart += 1
+        this.log2.yEnd -= 1
+        if (this.log2.yStart > 2) {
+          this.log2.step = 1
+        }
+      }
+      if (event.detail.direction === 'in' && this.log2.yStart > 1) {
+        this.log2.yStart -= 1
+        this.log2.yEnd += 1
+        if (this.log2.yStart <= 2) {
+          this.log2.step = 0.5
+        }
+      }
+      // then draw new with new coords
+      this.drawStaticContent()
+      drawTrack({ ...readInputField(), force: true, displayLoading: false, drawTitle: false })
+    })
   }
 
-  // Draw static content for interactive canvas
-  async drawStaticContent () {
+  // clear static content
+  async clearStaticContent () {
     const linePadding = 2
     const staticContext = this.staticCanvas.getContext('2d')
-
     // Fill background colour
     staticContext.fillStyle = '#F7F9F9'
     staticContext.fillRect(0, 0, this.staticCanvas.width, this.staticCanvas.height)
-
     // Make content area visible
     // content window
     staticContext.clearRect(this.x + linePadding, this.y + linePadding,
       this.plotWidth, this.staticCanvas.height)
     // area for ticks above content area
     staticContext.clearRect(0, 0, this.staticCanvas.width, this.y + linePadding)
+    // Transfer image to visible canvas
+    staticContext.drawImage(this.drawCanvas, 0, 0)
+  }
 
+  // Draw static content for interactive canvas
+  async drawStaticContent () {
+    const staticContext = this.staticCanvas.getContext('2d')
     // Draw rotated y-axis legends
     drawRotatedText(staticContext, 'B Allele Freq', 18, this.x - this.legendMargin,
       this.y + this.plotHeight / 2, -Math.PI / 2, this.titleColor)
@@ -313,12 +338,11 @@ export class InteractiveCanvas extends BaseScatterTrack {
       // Draw chromosome title on the content canvas as a blitting
       // work around
       this.titleYPos = result.y_pos - this.titleMargin
-      if ( drawTitle ) {
+      if (drawTitle) {
         this.titleBbox !== null && this.blitChromName(
-          {textPosition: this.titleBbox, clearOnly: true
-        })
+          { textPosition: this.titleBbox, clearOnly: true })
         this.titleBbox = this.drawTitle(`Chromosome ${result.chrom}`)
-        this.blitChromName({textPosition: this.titleBbox})
+        this.blitChromName({ textPosition: this.titleBbox })
       }
 
       return result

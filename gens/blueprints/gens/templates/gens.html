@@ -82,6 +82,12 @@
             <button onclick='gens.zoomIn();' class='button--zoom-in no-print'>
                 <span class='icon search-plus' title='Zoom in'></span>
             </button>
+            <button onclick='gens.zoomInY();' class='button--zoom-in-y no-print'>
+                <span class='icon search-plus' title='Zoom in Y'><br>Y</span>
+            </button>
+            <button onclick='gens.zoomOutY();' class='button--zoom-out-y no-print'>
+                <span class='icon search-minus' title='Zoom out Y'><br>Y</span>
+            </button>
             <button onclick='gens.zoomOut();' class='button--zoom-out no-print'>
                 <span class='icon search-minus' title='Zoom out'></span>
             </button>
@@ -176,7 +182,7 @@
       targetElementIds: ['interactive-content'],
     })
 
-    Promise.all([ic.drawStaticContent(), oc.drawOverviewContent()]).then( () => {
+    Promise.all([ic.clearStaticContent(), ic.drawStaticContent(), oc.drawOverviewContent()]).then( () => {
         // setup event managers and draw the tracks
         gens.drawTrack({chrom: '{{ chrom }}', start: start, end: {{ end }} })
         document.dispatchEvent(new CustomEvent('data-loaded'))
