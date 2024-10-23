@@ -5,10 +5,10 @@ import { OverviewCanvas } from './overview.js'
 import { VariantTrack, AnnotationTrack, TranscriptTrack, CytogeneticIdeogram } from './track.js'
 export {
   setupDrawEventManager, drawTrack, previousChromosome, nextChromosome,
-  panTracks, zoomIn, zoomOut, parseRegionDesignation, queryRegionOrGene
+  panTracks, zoomIn, zoomInY, zoomOut, zoomOutY, parseRegionDesignation, queryRegionOrGene
 } from './navigation.js'
 
-export function initCanvases({ sampleName, caseId, genomeBuild, hgFileDir, uiColors, scoutBaseURL, selectedVariant, annotationFile }) {
+export function initCanvases ({ sampleName, caseId, genomeBuild, hgFileDir, uiColors, scoutBaseURL, selectedVariant, annotationFile }) {
   // initialize and return the different canvases
   // WEBGL values
   const near = 0.1
@@ -44,7 +44,7 @@ export function initCanvases({ sampleName, caseId, genomeBuild, hgFileDir, uiCol
 }
 
 // Make hard link and copy link to clipboard
-export function copyPermalink(genomeBuild, region) {
+export function copyPermalink (genomeBuild, region) {
   // create element and add url to it
   const tempElement = document.createElement('input')
   const loc = window.location
@@ -57,14 +57,14 @@ export function copyPermalink(genomeBuild, region) {
 }
 
 // Reloads page to printable size
-export function loadPrintPage(region) {
+export function loadPrintPage (region) {
   let location = window.location.href.replace(/region=.*&/, `region=${region}&`)
   location = location.includes('?') ? `${location}&print_page=true` : `${location}?print_page=true`
   window.location.replace(location)
 }
 
 // Show print prompt and reloads page after print
-export function printPage() {
+export function printPage () {
   document.querySelector('.no-print').toggleAttribute('hidden')
   window.addEventListener('afterprint', () => {
     window.location.replace(window.location.href.replace('&print_page=true', ''))
