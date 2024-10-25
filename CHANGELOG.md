@@ -10,12 +10,15 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
 - `--force` flag prints a warning to stderr when overwriting an existing sample.
 - `gens delete sample` command
 - Height ordering for variants track.
+### Changed
+- Prettier for code formatting
 ### Fixed
-- Pan able to exit chrosome when using genome build 17 
+- Pan able to exit chromosome when using genome build 37 
 - `--force` flag `update_one` call not being called properly
 - Incorrect total sample count on home page.
 - Some typos and documentation.
 - Labels often not being visible on larger variants.
+
 
 ## [2.3]
 ### Added
@@ -104,7 +107,6 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Reinstated tooltips to display additional information on genetic elements
 ### Changed
  - Use popper for positioning tooltips
- - Prettier for code formatting
 ### Fixed
 
 ## [1.2.0]

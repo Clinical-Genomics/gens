@@ -2,13 +2,13 @@ import { get } from "./fetch.js";
 import { CHROMOSOMES } from "./track.js";
 import { chromSizes } from "./helper.js";
 
-function redrawEvent ({ region, exclude = [], ...kwargs }) {
-  return new CustomEvent(
-    'draw', { detail: { region: region, exclude: exclude, ...kwargs } }
-  )
+function redrawEvent({ region, exclude = [], ...kwargs }) {
+  return new CustomEvent("draw", {
+    detail: { region: region, exclude: exclude, ...kwargs },
+  });
 }
 
-function drawEventManager ({ target, throttleTime }) {
+function drawEventManager({ target, throttleTime }) {
   const tracks = [
     ...target.querySelectorAll(".track-container"),
     target.querySelector("#cytogenetic-ideogram"),
@@ -221,28 +221,24 @@ export function zoomOut() {
 }
 
 // Handle zoom in Y button click
-export function zoomInY () {
-  console.log('dispatching zoom in Y')
-  const zoomYEvent = new CustomEvent(
-    'zoomY', { detail: { direction: 'in' } }
-  )
-  document.getElementById('interactive-static').dispatchEvent(zoomYEvent)
+export function zoomInY() {
+  console.log("dispatching zoom in Y");
+  const zoomYEvent = new CustomEvent("zoomY", { detail: { direction: "in" } });
+  document.getElementById("interactive-static").dispatchEvent(zoomYEvent);
 }
 
 // Handle zoom out Y button click
-export function zoomOutY () {
-  console.log('dispatching zoom out Y')
-  const zoomYEvent = new CustomEvent(
-    'zoomY', { detail: { direction: 'out' } }
-  )
-  document.getElementById('interactive-static').dispatchEvent(zoomYEvent)
+export function zoomOutY() {
+  console.log("dispatching zoom out Y");
+  const zoomYEvent = new CustomEvent("zoomY", { detail: { direction: "out" } });
+  document.getElementById("interactive-static").dispatchEvent(zoomYEvent);
 }
 
 // Dispatch dispatch an event to draw a given region
 // Redraw events can be limited to certain tracks or include all tracks
 class KeyLogger {
   // Records keypress combinations
-  constructor (bufferSize = 10) {
+  constructor(bufferSize = 10) {
     // Setup variables
     this.bufferSize = bufferSize;
     this.lastKeyTime = Date.now();
@@ -270,7 +266,7 @@ class KeyLogger {
     });
   }
 
-  recentKeys (timeWindow) {
+  recentKeys(timeWindow) {
     // get keys pressed within a window of time.
     const currentTime = Date.now();
     return this.keyBuffer.filter(
@@ -327,14 +323,14 @@ document.addEventListener("keyevent", (event) => {
       case "d":
         panTracks("right", 0.7);
         break;
-      case '?':
-      case 'W':
-        zoomInY()
-        break
-      case 'S':
-      case '_':
-        zoomOutY()
-        break
+      case "?":
+      case "W":
+        zoomInY();
+        break;
+      case "S":
+      case "_":
+        zoomOutY();
+        break;
       case "ArrowUp":
       case "w":
       case "+":

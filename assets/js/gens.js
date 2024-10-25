@@ -111,7 +111,7 @@ export function initCanvases({
 }
 
 // Make hard link and copy link to clipboard
-export function copyPermalink (genomeBuild, region) {
+export function copyPermalink(genomeBuild, region) {
   // create element and add url to it
   const tempElement = document.createElement("input");
   const loc = window.location;
