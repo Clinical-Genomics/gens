@@ -21,23 +21,58 @@ class SampleNotFoundError(Exception):
         self.sample_id = sample_id
 
 
-def store_sample(db, sample_id, case_id, genome_build, baf, coverage, overview):
+class NonUniqueIndexError(Exception):
+    def __init__(self, message, sample_id, case_id, genome_build):
+        super().__init__(message)
+        
+        self.sample_id = sample_id
+        self.case_id = case_id
+        self.genome_build = genome_build
+
+
+def store_sample(db, sample_id, case_id, genome_build, baf, coverage, overview, force):
     """Store a new sample in the database."""
     LOG.info(f'Store sample "{sample_id}" in database')
-    try:
-        db[COLLECTION].insert_one(
+    if force:
+        result = db[COLLECTION].update_one(
             {
                 "sample_id": sample_id,
                 "case_id": case_id,
-                "baf_file": baf,
-                "coverage_file": coverage,
-                "overview_file": overview,
                 "genome_build": genome_build,
-                "created_at": datetime.datetime.now(),
-            }
+            },
+            {
+                "$set":
+                {
+                    "sample_id": sample_id,
+                    "case_id": case_id,
+                    "baf_file": baf,
+                    "coverage_file": coverage,
+                    "overview_file": overview,
+                    "genome_build": genome_build,
+                    "created_at": datetime.datetime.now(),
+                }
+            },
+            upsert=True
         )
-    except DuplicateKeyError:
-        LOG.warning(f'DuplicateKeyError while storing sample "{sample_id}" in database, skipping.', exc_info=True)
+        if result.modified_count == 1:
+            LOG.error(f'Sample with sample_id="{sample_id}" and case_id="{case_id}" was overwritten.')
+        if result.modified_count > 1:
+            raise NonUniqueIndexError(f'More than one entry matched sample_id="{sample_id}", case_id="{case_id}", and genome_build="{genome_build}". This should never happen.', sample_id, case_id, genome_build)
+    else:
+        try:
+            db[COLLECTION].insert_one(
+                {
+                    "sample_id": sample_id,
+                    "case_id": case_id,
+                    "baf_file": baf,
+                    "coverage_file": coverage,
+                    "overview_file": overview,
+                    "genome_build": genome_build,
+                    "created_at": datetime.datetime.now(),
+                }
+            )
+        except DuplicateKeyError:
+            LOG.error(f'DuplicateKeyError while storing sample with sample_id="{sample_id}" and case_id="{case_id}" in database.')
 
 
 def get_samples(db, start=0, n_samples=None):
@@ -84,4 +119,16 @@ def query_sample(db, sample_id, case_id, genome_build):
         coverage_file=result["coverage_file"],
         overview_file=result["overview_file"],
         created_at=result["created_at"],
+    )
+
+
+def delete_sample(db, sample_id, case_id, genome_build):
+    """Remove a sample from the database."""
+    LOG.info(f'Removing sample "{sample_id}" from database')
+    db[COLLECTION].delete_one(
+        {
+            "sample_id": sample_id,
+            "case_id": case_id,
+            "genome_build": genome_build,
+        }
     )

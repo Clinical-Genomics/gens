@@ -4,6 +4,19 @@ This project adheres to [Semantic Versioning](http://semver.org/)
 
 About changelog [here](https://keepachangelog.com/en/1.0.0/)
 
+## [Unreleased]
+### Added
+- `--force` flag to `gens loads sample` for overwriting any existing sample in case of key conflict.
+- `--force` flag prints a warning to stderr when overwriting an existing sample.
+- `gens delete sample` command
+- Height ordering for variants track.
+### Fixed
+- Pan able to exit chrosome when using genome build 17 
+- `--force` flag `update_one` call not being called properly
+- Incorrect total sample count on home page.
+- Some typos and documentation.
+- Labels often not being visible on larger variants.
+
 ## [2.3]
 ### Added
 - Link out to Scout: introduce config variable for base URL
@@ -13,6 +26,7 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
 - Archive prod docker image with release tag name. Update action versions.
 ### Fixed
 - Error image background static path
+- GitHub action DockerHub push on release
 
 ## [2.2]
 ### Added
@@ -90,6 +104,7 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Reinstated tooltips to display additional information on genetic elements
 ### Changed
  - Use popper for positioning tooltips
+ - Prettier for code formatting
 ### Fixed
 
 ## [1.2.0]
