@@ -182,7 +182,9 @@ export class InteractiveCanvas extends BaseScatterTrack {
     })
     // when user asks for Y zoom
     this.staticCanvas.addEventListener('zoomY', event => {
+      // clear with old coord context
       this.clearStaticContent()
+      // also needs to clear for track draw
       if (event.detail.direction === 'out') {
         this.log2.yStart += 1
         this.log2.yEnd -= 1
