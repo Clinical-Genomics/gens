@@ -360,7 +360,7 @@ html, body {
 .info-container[data-state=collapsed] {
     padding-right: 0;
     border: 1px solid gray;
-    overflow-y: hidden;
+    //overflow-y: hidden;
 }
 
 .info-container[data-state=expanded] {
@@ -406,13 +406,15 @@ html, body {
 }
 
 .info-container {
-    display: grid;
+    //display: grid;
+    position: relative;
     grid-column: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
+    //overflow-y: auto;
+    //overflow-x: hidden;
     height: 100px;
 
     .info-canvas {
+        position: absolute;
         top: 0;
         left: 0;
         z-index: 0;
@@ -421,19 +423,19 @@ html, body {
     }
 
     .info-titles {
+        position: absolute;
         top: 0;
         left: 0;
         z-index: 1;
         grid-row: 1;
         grid-column: 1;
-        position: relative;
     }
 
     .info-expand-button {
+        position: absolute;
         top: 0;
         right: 0;
         z-index: 2;
-        position: relative;
     }
 
     .offscreen {
