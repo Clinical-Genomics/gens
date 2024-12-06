@@ -65,9 +65,9 @@ export class InteractiveCanvas extends BaseScatterTrack {
 
     // Log2 ratio values
     this.log2 = {
-      yStart: 4.0, // Start value for y axis
-      yEnd: -4.0, // End value for y axis
-      step: 1.0, // Step value for drawing ticks along y-axis
+      yStart: 2.0, // Start value for y axis
+      yEnd: -2.0, // End value for y axis
+      step: 0.5, // Step value for drawing ticks along y-axis
       color: "#000000", // Viz color
     };
 
@@ -232,13 +232,40 @@ export class InteractiveCanvas extends BaseScatterTrack {
       this.markingRegion = false;
       this.drag = false;
     });
+    // when user asks for Y zoom
+    this.staticCanvas.addEventListener("zoomY", (event) => {
+      // clear with old coord context
+      this.clearStaticContent();
+      // also needs to clear for track draw
+      if (event.detail.direction === "out") {
+        this.log2.yStart += 1;
+        this.log2.yEnd -= 1;
+        if (this.log2.yStart > 2) {
+          this.log2.step = 1;
+        }
+      }
+      if (event.detail.direction === "in" && this.log2.yStart > 1) {
+        this.log2.yStart -= 1;
+        this.log2.yEnd += 1;
+        if (this.log2.yStart <= 2) {
+          this.log2.step = 0.5;
+        }
+      }
+      // then draw new with new coords
+      this.drawStaticContent();
+      drawTrack({
+        ...readInputField(),
+        force: true,
+        displayLoading: false,
+        drawTitle: false,
+      });
+    });
   }
 
-  // Draw static content for interactive canvas
-  async drawStaticContent() {
+  // clear static content
+  async clearStaticContent() {
     const linePadding = 2;
     const staticContext = this.staticCanvas.getContext("2d");
-
     // Fill background colour
     staticContext.fillStyle = "#F7F9F9";
     staticContext.fillRect(
@@ -247,7 +274,6 @@ export class InteractiveCanvas extends BaseScatterTrack {
       this.staticCanvas.width,
       this.staticCanvas.height,
     );
-
     // Make content area visible
     // content window
     staticContext.clearRect(
@@ -263,7 +289,13 @@ export class InteractiveCanvas extends BaseScatterTrack {
       this.staticCanvas.width,
       this.y + linePadding,
     );
+    // Transfer image to visible canvas
+    staticContext.drawImage(this.drawCanvas, 0, 0);
+  }
 
+  // Draw static content for interactive canvas
+  async drawStaticContent() {
+    const staticContext = this.staticCanvas.getContext("2d");
     // Draw rotated y-axis legends
     drawRotatedText(
       staticContext,
@@ -418,6 +450,34 @@ export class InteractiveCanvas extends BaseScatterTrack {
           data: result.data,
           color: this.log2.color,
         });
+
+        // Transfer image to visible canvas
+        this.blitInteractiveCanvas({ start, end });
+        // Draw chromosome title on the content canvas as a blitting
+        // work around
+        this.titleYPos = result.y_pos - this.titleMargin;
+        if (drawTitle) {
+          this.titleBbox !== null &&
+            this.blitChromName({
+              textPosition: this.titleBbox,
+              clearOnly: true,
+            });
+          this.titleBbox = this.drawTitle(`Chromosome ${result.chrom}`);
+          this.blitChromName({ textPosition: this.titleBbox });
+        }
+
+        return result;
+      })
+      .then((result) => {
+        if (displayLoading) {
+          this.loadingDiv.style.display = "none";
+        } else {
+          document.getElementsByTagName("body")[0].style.cursor = "auto";
+        }
+        this.allowDraw = true;
+      })
+      .catch((error) => {
+        this.allowDraw = true;
 
         // Transfer image to visible canvas
         this.blitInteractiveCanvas({ start, end });

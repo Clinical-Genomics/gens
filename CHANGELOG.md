@@ -10,6 +10,8 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - `--force` flag prints a warning to stderr when overwriting an existing sample.
  - `gens delete sample` command
  - Height ordering for variants track.
+### Changed
+- Prettier for code formatting
 ### Fixed
  - Pan able to exit chrosome when using genome build 17 
  - `--force` flag `update_one` call not being called properly
@@ -23,6 +25,7 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Fixed cache issue that could result in chromosome information not being updated
  - Fixed max arg error when searching for some genes
  - Fixed bug that prevented updating annotation tracks
+
 
 ## [2.3]
 ### Added
@@ -43,7 +46,7 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Use sample id instead of display name for variant retrieval
  - Hide balanced variants
  - Keyboard pan speed increased
- - Don't shrink pan window when attemting to pan over start
+ - Don't shrink pan window when attempting to pan over start
 
 ## [2.1.1b]
 ### Added
@@ -119,7 +122,6 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Reinstated tooltips to display additional information on genetic elements
 ### Changed
  - Use popper for positioning tooltips
- - Prettier for code formatting
 ### Fixed
 
 ## [1.2.0]

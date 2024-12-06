@@ -8,6 +8,7 @@ import {
   TranscriptTrack,
   CytogeneticIdeogram,
 } from "./track.js";
+
 export {
   setupDrawEventManager,
   drawTrack,
@@ -15,7 +16,9 @@ export {
   nextChromosome,
   panTracks,
   zoomIn,
+  zoomInY,
   zoomOut,
+  zoomOutY,
   parseRegionDesignation,
   queryRegionOrGene,
 } from "./navigation.js";
