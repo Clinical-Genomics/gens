@@ -1,13 +1,13 @@
 """Store and retrive samples from the database."""
 
-import datetime
 import itertools
 import logging
 
-from pymongo import DESCENDING
+from pymongo import DESCENDING, MongoClient
 from pymongo.errors import DuplicateKeyError
 
-from .models import SampleObj
+from gens.models.genomic import GenomeBuild
+from gens.models.sample import SampleInfo
 
 LOG = logging.getLogger(__name__)
 
@@ -15,24 +15,46 @@ COLLECTION = "samples"
 
 
 class SampleNotFoundError(Exception):
-    def __init__(self, message, sample_id):
+    """The sample was not found in the database."""
+
+    def __init__(self, message: str, sample_id: str):
         super().__init__(message)
 
         self.sample_id = sample_id
 
 
 class NonUniqueIndexError(Exception):
-    def __init__(self, message, sample_id, case_id, genome_build):
+    """A similar index already exists in the database."""
+
+    def __init__(self, message: str, sample_id: str, case_id: str, genome_build: str):
         super().__init__(message)
-        
+
         self.sample_id = sample_id
         self.case_id = case_id
         self.genome_build = genome_build
 
 
-def store_sample(db, sample_id, case_id, genome_build, baf, coverage, overview, force):
+def store_sample(
+    db: MongoClient,
+    sample_id: str,
+    case_id: str,
+    genome_build: GenomeBuild,
+    baf: str,
+    coverage: str,
+    overview: str,
+    force: bool,
+):
     """Store a new sample in the database."""
-    LOG.info(f'Store sample "{sample_id}" in database')
+    LOG.info('Store sample "%s" in database', sample_id)
+    sample_obj = SampleInfo(
+        sample_id=sample_id,
+        case_id=case_id,
+        genome_build=genome_build,
+        baf_file=baf,
+        coverage_file=coverage,
+        overview_file=overview,
+    )
+    index_fields: list[str] = ["baf_index", "coverage_index"]
     if force:
         result = db[COLLECTION].update_one(
             {
@@ -40,52 +62,51 @@ def store_sample(db, sample_id, case_id, genome_build, baf, coverage, overview, 
                 "case_id": case_id,
                 "genome_build": genome_build,
             },
-            {
-                "$set":
-                {
-                    "sample_id": sample_id,
-                    "case_id": case_id,
-                    "baf_file": baf,
-                    "coverage_file": coverage,
-                    "overview_file": overview,
-                    "genome_build": genome_build,
-                    "created_at": datetime.datetime.now(),
-                }
-            },
-            upsert=True
+            {"$set": sample_obj.model_dump(exclude=index_fields)},
+            upsert=True,
         )
         if result.modified_count == 1:
-            LOG.error(f'Sample with sample_id="{sample_id}" and case_id="{case_id}" was overwritten.')
+            LOG.error(
+                'Sample with sample_id="%s" and case_id="%s" was overwritten.',
+                sample_id, case_id
+            )
         if result.modified_count > 1:
-            raise NonUniqueIndexError(f'More than one entry matched sample_id="{sample_id}", case_id="{case_id}", and genome_build="{genome_build}". This should never happen.', sample_id, case_id, genome_build)
+            raise NonUniqueIndexError(
+                (
+                    f'More than one entry matched sample_id="{sample_id}", '
+                    f'case_id="{case_id}", and genome_build="{genome_build}".'
+                    'This should never happen.'
+                ),
+                sample_id,
+                case_id,
+                genome_build,
+            )
     else:
         try:
-            db[COLLECTION].insert_one(
-                {
-                    "sample_id": sample_id,
-                    "case_id": case_id,
-                    "baf_file": baf,
-                    "coverage_file": coverage,
-                    "overview_file": overview,
-                    "genome_build": genome_build,
-                    "created_at": datetime.datetime.now(),
-                }
-            )
+            db[COLLECTION].insert_one(sample_obj.model_dump(exclude=index_fields))
         except DuplicateKeyError:
-            LOG.error(f'DuplicateKeyError while storing sample with sample_id="{sample_id}" and case_id="{case_id}" in database.')
+            LOG.error(
+                (
+                    'DuplicateKeyError while storing sample' 
+                    'with sample_id="%s" and case_id="%s" in database.'
+                ),
+                sample_id, case_id
+            )
 
 
-def get_samples(db, start=0, n_samples=None):
+def get_samples(
+    db: MongoClient, start: int = 0, n_samples: int | None = None
+) -> tuple[list[SampleInfo], int]:
     """
     Get samples stored in the databse.
 
     use n_samples to limit the results to x most recent samples
     """
     results = (
-        SampleObj(
+        SampleInfo(
             sample_id=r["sample_id"],
             case_id=r["case_id"],
-            genome_build=r["genome_build"],
+            genome_build=GenomeBuild(int(r["genome_build"])),
             baf_file=r["baf_file"],
             coverage_file=r["coverage_file"],
             overview_file=r["overview_file"],
@@ -99,7 +120,7 @@ def get_samples(db, start=0, n_samples=None):
     return results, db[COLLECTION].count_documents({})
 
 
-def query_sample(db, sample_id, case_id, genome_build):
+def query_sample(db: MongoClient, sample_id: str, case_id: str | None) -> SampleInfo:
     """Get a sample with id."""
     result = None
     if case_id is None:
@@ -111,10 +132,10 @@ def query_sample(db, sample_id, case_id, genome_build):
         raise SampleNotFoundError(
             f'No sample with id: "{sample_id}" in database', sample_id
         )
-    return SampleObj(
+    return SampleInfo(
         sample_id=result["sample_id"],
         case_id=result["case_id"],
-        genome_build=result["genome_build"],
+        genome_build=GenomeBuild(int(result["genome_build"])),
         baf_file=result["baf_file"],
         coverage_file=result["coverage_file"],
         overview_file=result["overview_file"],
@@ -122,9 +143,9 @@ def query_sample(db, sample_id, case_id, genome_build):
     )
 
 
-def delete_sample(db, sample_id, case_id, genome_build):
+def delete_sample(db: MongoClient, sample_id: str, case_id: str, genome_build: int):
     """Remove a sample from the database."""
-    LOG.info(f'Removing sample "{sample_id}" from database')
+    LOG.info('Removing sample "%s" from database', sample_id)
     db[COLLECTION].delete_one(
         {
             "sample_id": sample_id,
