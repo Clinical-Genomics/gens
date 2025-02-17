@@ -1,7 +1,9 @@
 """Create indexes in the database."""
-import logging
 
-from pymongo import ASCENDING, IndexModel
+import logging
+from typing import Any
+
+from pymongo import ASCENDING, IndexModel, MongoClient
 
 from .annotation import ANNOTATIONS, TRANSCRIPTS
 from .chrom_sizes import CHROMSIZES
@@ -73,7 +75,11 @@ INDEXES = {
             background=True,
         ),
         IndexModel(
-            [("sample_id", ASCENDING), ("case_id", ASCENDING), ("genome_build", ASCENDING)],
+            [
+                ("sample_id", ASCENDING),
+                ("case_id", ASCENDING),
+                ("genome_build", ASCENDING),
+            ],
             name="sample__sample_id_case_id_genome_build",
             background=True,
             unique=True,
@@ -87,11 +93,11 @@ INDEXES = {
 }
 
 
-def get_indexes(db, collection):
+def get_indexes(db: MongoClient, target_collection_name: str) -> list[Any]:
     """Get current indexes for a collection."""
-    indexes = []
+    indexes: list[str] = []
     for collection_name in db.list_collection_names():
-        if collection and collection != collection_name:
+        if target_collection_name and target_collection_name != collection_name:
             continue
         for index_name in db[collection_name].index_information():
             if index_name != "_id_":
@@ -99,7 +105,7 @@ def get_indexes(db, collection):
     return indexes
 
 
-def create_index(db, collection_name):
+def create_index(db: MongoClient, collection_name: str):
     """Create indexes for collection in Gens db."""
     indexes = INDEXES[collection_name]
     existing_indexes = get_indexes(db, collection_name)
@@ -107,22 +113,22 @@ def create_index(db, collection_name):
     for index in indexes:
         index_name = index.document.get("name")
         if index_name in existing_indexes:
-            LOG.info(f"Removing old index: {index_name}")
+            LOG.info("Removing old index: %s", index_name)
             db[collection_name].drop_index(index_name)
     # Create new indexes
-    names = ", ".join([i.document.get("name") for i in indexes])
-    LOG.info(f"Creating indexes {names} for collection: {collection_name}")
+    names = ", ".join([str(i.document.get("name")) for i in indexes])
+    LOG.info("Creating indexes %s for collection: %s", names, collection_name)
     db[collection_name].create_indexes(indexes)
 
 
-def create_indexes(db):
+def create_indexes(db: MongoClient) -> None:
     """Create indexes for Gens db."""
     LOG.info("Indexing the gens database.")
     for collection_name in INDEXES:
         create_index(db, collection_name)
 
 
-def update_indexes(db):
+def update_indexes(db: MongoClient) -> int:
     """Add missing indexes to the database."""
     LOG.info("Updating gens database indexes.")
     n_updated = 0
@@ -131,7 +137,7 @@ def update_indexes(db):
         for index in indexes:
             index_name = index.document.get("name")
             if index_name not in existing_indexes:
-                LOG.info(f"Creating index : {index_name}")
+                LOG.info("Creating index : %s", index_name)
                 db[collection_name].create_indexes([index])
                 n_updated += 1
     LOG.info("Updated %d indexes to the database", n_updated)

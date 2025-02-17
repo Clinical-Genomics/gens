@@ -4,6 +4,22 @@ This project adheres to [Semantic Versioning](http://semver.org/)
 
 About changelog [here](https://keepachangelog.com/en/1.0.0/)
 
+## Unreleased
+### Added
+ - Use pydantic-settings for settings validation.
+ - Add linting to CI github workflow
+ - Temporary HG002 quick-setup script in utils. Requires mongo-dumps currently not part of the Gens repo. Will be replaced by a general setup script ahead.
+### Changed
+ - Changed some settings names
+ - Migrated from setup.py to pyproject.toml using hatchling
+ - Updated python to version 3.12 and thawed some dependencies.
+ - Switched from JS to TS and updated required parts of the build chain.
+### Fixed
+ - Resolved all type errors from tsc
+ - Initial type hints added to command and db modules
+ - Remove unused file argument for load chromomsome info CLI command
+ - Fixed various issues raised by pylint
+
 ## 3.0.1
 ### Changed
  - Added files for setting up development and deployment-like instances.

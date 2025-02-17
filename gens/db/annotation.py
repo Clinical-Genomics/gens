@@ -4,10 +4,12 @@ import datetime
 import logging
 from collections import defaultdict
 from itertools import groupby
+from typing import Any
 
 from flask import current_app as app
 
-from .models import VariantCategory
+from gens.models.annotation import AnnotationRecord, TranscriptRecord
+from gens.models.genomic import GenomeBuild, GenomicRegion, VariantCategory
 
 LOG = logging.getLogger(__name__)
 
@@ -17,18 +19,18 @@ TRANSCRIPTS = "transcripts"
 UPDATES = "updates"
 
 
-def register_data_update(track_type, name=None):
+def register_data_update(track_type: str, name: str | None = None):
     """Register that a track was updated."""
     db = app.config["GENS_DB"][UPDATES]
-    LOG.debug(f"Creating timestamp for {track_type}")
+    LOG.debug("Creating timestamp for %s", track_type)
     track = {"track": track_type, "name": name}
     db.delete_many(track)  # remove old track
     db.insert_one({**track, "timestamp": datetime.datetime.now()})
 
 
-def get_timestamps(track_type="all"):
+def get_timestamps(track_type: str = "all"):
     """Get when a annotation track was last updated."""
-    LOG.debug(f"Reading timestamp for {track_type}")
+    LOG.debug("Reading timestamp for %s", track_type)
     db = app.config["GENS_DB"][UPDATES]
     if track_type == "all":
         query = db.find()
@@ -36,7 +38,7 @@ def get_timestamps(track_type="all"):
         query = db.find({"track": track_type})
 
     # build results from query
-    results = defaultdict(list)
+    results: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for key, entries in groupby(query, key=lambda x: x["track"]):
         for entry in entries:
             results[key].append(
@@ -49,7 +51,9 @@ def get_timestamps(track_type="all"):
     return results
 
 
-def query_variants(case_id: str, sample_name: str, variant_category: VariantCategory, **kwargs):
+def query_variants(
+    case_id: str, sample_name: str, variant_category: VariantCategory, **kwargs
+) -> Any:
     """Search the scout database for variants associated with a case.
 
     case_id :: id for a case
@@ -63,12 +67,14 @@ def query_variants(case_id: str, sample_name: str, variant_category: VariantCate
     query = {
         "case_id": case_id,
         "category": variant_category.value,
-        "$or": [{"samples.sample_id": sample_name},
-                {"samples.display_name": sample_name}]
+        "$or": [
+            {"samples.sample_id": sample_name},
+            {"samples.display_name": sample_name},
+        ],
     }
     # add chromosome
     if "chromosome" in kwargs:
-        query["chromosome"] = kwargs["chromosome"]
+        query["chromosome"] = kwargs["chromosome"].value
     # add start, end position to query
     if all(param in kwargs for param in ["start_pos", "end_pos"]):
         query = {
@@ -78,11 +84,11 @@ def query_variants(case_id: str, sample_name: str, variant_category: VariantCate
             ),
         }
     # query database
-    LOG.info(f"Query variant database: {query}")
+    LOG.info("Query variant database: %s", query)
     return db.variant.find(query)
 
 
-def _make_query_region(start_pos: int, end_pos: int, motif_type="other"):
+def _make_query_region(start_pos: int, end_pos: int, motif_type: str = "other") -> Any:
     """Make a query for a chromosomal region."""
     if motif_type == "sv":  # for sv are start called position
         start_name = "position"
@@ -99,20 +105,18 @@ def _make_query_region(start_pos: int, end_pos: int, motif_type="other"):
 
 
 def query_records_in_region(
-    record_type,
-    chrom,
-    start_pos,
-    end_pos,
-    genome_build,
-    height_order=None,
+    record_type: str,
+    region: GenomicRegion,
+    genome_build: GenomeBuild,
+    height_order: int | None = None,
     **kwargs,
-):
+) -> Any:
     """Query the gens database for transcript information."""
     # build base query
     query = {
-        "chrom": chrom,
-        "genome_build": genome_build,
-        **_make_query_region(start_pos, end_pos),
+        "chrom": region.chromosome.value,
+        "genome_build": genome_build.value,
+        **_make_query_region(region.start, region.end),
         **kwargs,  # add optional search params
     }
     # build sort order
@@ -122,6 +126,13 @@ def query_records_in_region(
     else:
         query["height_order"] = height_order
     # query database
-    return app.config["GENS_DB"][record_type].find(
+    cursor = app.config["GENS_DB"][record_type].find(
         query, {"_id": False}, sort=sort_order
     )
+    if record_type == "annotations":
+        result = [AnnotationRecord(**doc) for doc in cursor]
+    elif record_type == "transcripts":
+        result = [TranscriptRecord(**doc) for doc in cursor]
+    else:
+        raise ValueError(f"unknown record type {record_type}")
+    return result

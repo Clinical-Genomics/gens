@@ -3,7 +3,9 @@ pytest
 pytest-cov
 pytest-flask
 pytest-mongodb
+coveralls
 
 # utils
+pylint
 black
 isort

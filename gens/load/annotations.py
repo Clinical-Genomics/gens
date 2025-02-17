@@ -1,12 +1,16 @@
 """Annotations."""
+
 import csv
 import logging
 import re
+from pathlib import Path
+from typing import Iterator
 
-from pymongo import ASCENDING
+from pymongo import ASCENDING, MongoClient
 
-from gens.constants import CHROMOSOMES
 from gens.db import ANNOTATIONS_COLLECTION
+from gens.models.annotation import AnnotationRecord
+from gens.models.genomic import Chromosome, GenomeBuild
 
 LOG = logging.getLogger(__name__)
 FIELD_TRANSLATIONS = {
@@ -40,33 +44,66 @@ DEFAULT_COLOR = "grey"
 
 
 class ParserError(Exception):
-    pass
+    """Parser errors."""
 
 
-def parse_bed(file):
+def parse_bed(file: Path) -> Iterator[dict[str, str]]:
     """Parse bed file."""
+<<<<<<< HEAD
     with open(file, encoding='utf-8') as bed:
         header_detected = csv.Sniffer().has_header(bed.read(1024))
         bed.seek(0)
         bed_reader = csv.DictReader(bed, delimiter="\t") if header_detected else csv.DictReader(bed, STANDARD_BED_COLUMNS, delimiter="\t")
+=======
+    with open(file, encoding="utf-8") as bed:
+        bed_reader = csv.DictReader(
+            bed,
+            fieldnames=[
+                "sequence",
+                "start",
+                "end",
+                "name",
+                "score",
+                "strand",
+                "thickStart",
+                "thickEnd",
+                "color",
+                "block_count",
+                "block_sizes",
+                "block_starts",
+            ],
+            delimiter="\t",
+        )
+>>>>>>> lund/master
 
         # Load in annotations
         for line in bed_reader:
             # skip comment lines
+<<<<<<< HEAD
             if next(iter(line.values())).startswith('#'):
+=======
+            if line["sequence"].startswith("#"):
+>>>>>>> lund/master
                 continue
             yield line
 
 
-def parse_aed(file):
+def parse_aed(file: Path) -> Iterator[dict[str, str]]:
     """Parse aed file."""
-    header = {}
-    with open(file) as aed:
+    header: dict[str, str] = {}
+    with open(file, encoding='utf-8') as aed:
         aed_reader = csv.reader(aed, delimiter="\t")
 
         # Parse the aed header and get the keys and data formats
         for head in next(aed_reader):
-            field, data_type = re.search(AED_ENTRY, head).groups()
+
+            matches = re.search(AED_ENTRY, head)
+            if matches is None:
+                raise ValueError(
+                    f"Expected to find {AED_ENTRY} in {head}, but did not succeed"
+                )
+
+            field, data_type = matches.groups()
             header[field] = data_type.lower()
 
         # iterate over file content
@@ -76,21 +113,22 @@ def parse_aed(file):
             yield dict(zip(header, line))
 
 
-def parse_annotation_entry(entry, genome_build, annotation_name):
+def parse_annotation_entry(
+    entry: dict[str, str], genome_build: GenomeBuild, annotation_name: str
+) -> AnnotationRecord:
     """Parse a bed or aed entry"""
-    annotation = {}
+    annotation: dict[str, str | int] = {}
     # parse entry and format the values
     for name, value in entry.items():
-        name = name.strip("#")
-        name = name.lower()
+        name = name.strip("#").lower()
         if name in FIELD_TRANSLATIONS:
             name = FIELD_TRANSLATIONS[name]
         if name in CORE_FIELDS:
             try:
                 annotation[name] = format_data(name, value)
             except ValueError as err:
-                LOG.debug(f"Bad line: {entry}")
-                raise ParserError(str(err))
+                LOG.debug("Bad line: %s", entry)
+                raise ParserError(str(err)) from err
 
     # ensure that coordinates are in correct order
     annotation["start"], annotation["end"] = sorted(
@@ -99,15 +137,14 @@ def parse_annotation_entry(entry, genome_build, annotation_name):
     # set missing fields to default values
     set_missing_fields(annotation, annotation_name)
     # set additional values
-    annotation = {
-        "source": annotation_name,
-        "genome_build": genome_build,
+    return AnnotationRecord(
+        source=annotation_name,
+        genome_build=genome_build,
         **annotation,
-    }
-    return annotation
+    )
 
 
-def format_data(name, value):
+def format_data(name: str, value: str) -> str | int:
     """Formats the data depending on title"""
     if name == "color":
         if not value:
@@ -131,32 +168,38 @@ def format_data(name, value):
     return fmt_val
 
 
-def set_missing_fields(annotation, name):
+def set_missing_fields(annotation: dict[str, str | int], name: str):
     """Sets default values to fields that are missing"""
     for field_name in CORE_FIELDS:
         if field_name in annotation:
             continue
-        elif field_name == "color":
+
+        if field_name == "color":
             annotation[field_name] = DEFAULT_COLOR
         elif field_name == "score":
             annotation[field_name] = "None"
+<<<<<<< HEAD
         elif field_name == "chrom" or field_name == "strand":
+=======
+        elif field_name in ["sequence", "strand"]:
+>>>>>>> lund/master
             pass
         else:
             LOG.warning(
-                f"field {field_name} is missing from annotation {annotation} in file {name}"
+                "field %s is missing from annotation %s in file %s",
+                field_name, annotation, name
             )
 
 
-def update_height_order(db, name):
+def update_height_order(db: MongoClient, name: str):
     """Updates height order for annotations.
 
     Height order is used for annotation placement
     """
-    for chrom in CHROMOSOMES:
+    for chrom in Chromosome:
         annotations = (
             db[ANNOTATIONS_COLLECTION]
-            .find({"chrom": chrom, "source": name})
+            .find({"chrom": chrom.value, "source": name})
             .sort([("start", ASCENDING)])
         )
 
@@ -184,9 +227,11 @@ def update_height_order(db, name):
                     height_tracker += [-1] * 100
 
 
-def parse_annotation_file(file, file_format):
+def parse_annotation_file(file: Path, file_format: str) -> Iterator[dict[str, str]]:
     """Parse an annotation file in bed or aed format."""
     if file_format == "bed":
         return parse_bed(file)
     if file_format == "aed":
         return parse_aed(file)
+
+    raise ValueError(f"Unknown file format: {file_format}")
