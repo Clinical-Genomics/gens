@@ -4,6 +4,10 @@ This project adheres to [Semantic Versioning](http://semver.org/)
 
 About changelog [here](https://keepachangelog.com/en/1.0.0/)
 
+### Unreleased
+### Added
+- Y axis zoom
+
 ## 3.0.1
 ### Changed
  - Added files for setting up development and deployment-like instances.
@@ -20,6 +24,8 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - `--force` flag prints a warning to stderr when overwriting an existing sample.
  - `gens delete sample` command
  - Height ordering for variants track.
+### Changed
+- Prettier for code formatting
 ### Fixed
  - Pan able to exit chrosome when using genome build 17 
  - `--force` flag `update_one` call not being called properly
@@ -149,7 +155,6 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
  - Reinstated tooltips to display additional information on genetic elements
 ### Changed
  - Use popper for positioning tooltips
- - Prettier for code formatting
 ### Fixed
 
 ## [1.2.0]

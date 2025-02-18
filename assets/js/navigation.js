@@ -41,7 +41,6 @@ export function readInputField() {
   const field = document.getElementById("region-field");
   return parseRegionDesignation(field.value);
 }
-
 function updateInputField({ chrom, start, end }) {
   const field = document.getElementById("region-field");
   field.value = `${chrom}:${start}-${end}`;
@@ -221,6 +220,20 @@ export function zoomOut() {
   });
 }
 
+// Handle zoom in Y button click
+export function zoomInY() {
+  console.log("dispatching zoom in Y");
+  const zoomYEvent = new CustomEvent("zoomY", { detail: { direction: "in" } });
+  document.getElementById("interactive-static").dispatchEvent(zoomYEvent);
+}
+
+// Handle zoom out Y button click
+export function zoomOutY() {
+  console.log("dispatching zoom out Y");
+  const zoomYEvent = new CustomEvent("zoomY", { detail: { direction: "out" } });
+  document.getElementById("interactive-static").dispatchEvent(zoomYEvent);
+}
+
 // Dispatch dispatch an event to draw a given region
 // Redraw events can be limited to certain tracks or include all tracks
 class KeyLogger {
@@ -309,6 +322,14 @@ document.addEventListener("keyevent", (event) => {
         break;
       case "d":
         panTracks("right", 0.7);
+        break;
+      case "?":
+      case "W":
+        zoomInY();
+        break;
+      case "S":
+      case "_":
+        zoomOutY();
         break;
       case "ArrowUp":
       case "w":
