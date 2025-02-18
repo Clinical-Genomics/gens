@@ -359,9 +359,9 @@ body {
 }
 
 .info-container[data-state="collapsed"] {
-  padding-right: 0;
-  border: 1px solid gray;
-  overflow-y: hidden;
+    padding-right: 0;
+    border: 1px solid gray;
+    //overflow-y: hidden;
 }
 
 .info-container[data-state="expanded"] {
@@ -407,31 +407,41 @@ body {
 }
 
 .info-container {
-  display: grid;
-  grid-column: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  height: 100px;
-
-  .info-canvas {
-    top: 0;
-    left: 0;
-    z-index: 0;
-    grid-row: 1;
-    grid-column: 1;
-  }
-
-  .info-titles {
-    top: 0;
-    left: 0;
-    z-index: 1;
-    grid-row: 1;
-    grid-column: 1;
+    //display: grid;
     position: relative;
-  }
-  .offscreen {
-    visibility: hidden;
-  }
+    grid-column: 1;
+    //overflow-y: auto;
+    //overflow-x: hidden;
+    height: 100px;
+
+    .info-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 0;
+        grid-row: 1;
+        grid-column: 1;
+    }
+
+    .info-titles {
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+        grid-row: 1;
+        grid-column: 1;
+    }
+
+    .info-expand-button {
+        position: absolute;
+        top: 0;
+        right: 0;
+        z-index: 2;
+    }
+
+    .offscreen {
+        visibility: hidden;
+    }
 }
 
 .info-container::-webkit-scrollbar {
