@@ -79,16 +79,17 @@ def get_assembly_info(
     bands: bool = True,
     synonyms: bool = True,
     timeout: int = 2,
-):
+) -> Any:
     """Get assembly info from ensembl."""
     base_rest_url = {"37": "grch37.rest.ensembl.org", "38": "rest.ensembl.org"}
+    params: dict[str, str] = {
+        "content-type": "application/json",
+        "bands": str(bands),
+        "synonyms": str(synonyms),
+    }
     resp = requests.get(
         f"https://{base_rest_url[str(genome_build)]}/info/assembly/{specie}",
-        params={
-            "content-type": "application/json",
-            "bands": int(bands),
-            "synonyms": int(synonyms),
-        },
+        params=params,
         timeout=timeout,
     )
     # crash if not successful
@@ -96,7 +97,7 @@ def get_assembly_info(
     return resp.json()
 
 
-def get_assembly_annotation(insdc_id: str, data_format: str = "embl", timeout: int = 2):
+def get_assembly_annotation(insdc_id: str, data_format: str = "embl", timeout: int = 2) -> str:
     """Get assembly for id from EBI using INSDC id."""
     LOG.debug("Get assembly annotation for %s", insdc_id)
     resp = requests.get(

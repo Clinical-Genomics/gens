@@ -7,6 +7,8 @@ coverage
 dump/
 frontend/
 docker-compose.override.yml
+!tests/fixtures/*.aed
+!tests/fixtures/*.bed
 
 # python
 *.pyc
@@ -17,6 +19,7 @@ utils/Homo_sapiens.GRCh38.99.gtf
 utils/MANE.GRCh38.v0.8.summary.txt
 utils/hg38_annotations/
 venv/
+tests/__pycache__/
 *.egg-info
 .eggs
 .idea

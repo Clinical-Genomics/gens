@@ -6,19 +6,34 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
 
 ## Unreleased
 ### Added
+ - User can specify path to a custom config file with the env `CONFIG_FILE`.
+ - Added test for the cli command `gens load annotations`.
  - Use pydantic-settings for settings validation.
  - Add linting to CI github workflow
  - Temporary HG002 quick-setup script in utils. Requires mongo-dumps currently not part of the Gens repo. Will be replaced by a general setup script ahead.
+ - load transcripts can also read gzipped files
+
 ### Changed
- - Changed some settings names
+ - Settings now uses submodels for oauth and database connections
  - Migrated from setup.py to pyproject.toml using hatchling
  - Updated python to version 3.12 and thawed some dependencies.
  - Switched from JS to TS and updated required parts of the build chain.
+ - For strand information, "" is interpreted as unknown and assigned "."
+ - Genome builds are dealt with as integers also for annotation tracks (previously these had been encoded as strings)
+ - Replaced the temporary hard-coded to HG002 setup script with the more flexible "utils/quick_setup.py", able to take many samples and annotations
+
 ### Fixed
+ - Fixed parsing of AED and BED files.
+ - Minor cleanup of `get-multiple-coverages` function.
  - Resolved all type errors from tsc
  - Initial type hints added to command and db modules
  - Remove unused file argument for load chromomsome info CLI command
  - Fixed various issues raised by pylint
+ - mypy type fixing for `mypy gens/commands/load.py`
+ - Refactor load transcripts
+ - Fix `gens delete sample` command by making it take the correct int formatted genome build number
+ - Refactor CLI sample functions to work with a Gens collection rather than accessing the db globally
+ - Resolve OAuth issue
 
 ## 3.0.1
 ### Changed

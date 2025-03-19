@@ -2,34 +2,39 @@
 
 import logging
 from itertools import groupby
+from typing import Any, Iterable
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
+from pymongo.database import Database
 from tabulate import tabulate
 
 from gens.db import get_samples
+from gens.db.collections import SAMPLES_COLLECTION
 
 LOG = logging.getLogger(__name__)
 
 
 @click.group()
-def view():
+def view() -> None:
     """View information loaded into Gens database"""
 
 
 @view.command()
 @click.option("-s", "--summary", is_flag=True, help="Summarize the number of samples")
 @with_appcontext
-def samples(summary: bool):
+def samples(summary: bool) -> None:
     """View samples stored in the database"""
-    db = app.config["GENS_DB"]
+    db: Database = app.config["GENS_DB"]
     # print samples to terminal
-    samples_in_db, _ = get_samples(db)
+    samples_in_db, _ = get_samples(db[SAMPLES_COLLECTION])
+    sample_tbl: Iterable[Any]
+    columns: Iterable[Any]
     if summary:  # count number of samples per genome build
         columns = ("Genome build", "N samples")
         sample_tbl = (
-            (gr, len(1 for _ in vals))
+            (gr, len(list(1 for _ in vals)))
             for gr, vals in groupby(samples_in_db, key=lambda x: x.genome_build)
         )
     else:  # show all samples

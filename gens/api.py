@@ -4,23 +4,29 @@ import gzip
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, cast
 
 import connexion
 from fastapi.encoders import jsonable_encoder
 from flask import current_app, jsonify
 from pysam import TabixFile
+from pymongo.database import Database
+from werkzeug.wrappers.response import Response
 
 from gens.db import (
-    ANNOTATIONS_COLLECTION,
-    TRANSCRIPTS_COLLECTION,
     get_chromosome_size,
     query_records_in_region,
     query_sample,
     query_variants,
 )
+from gens.db.collections import (
+    ANNOTATIONS_COLLECTION,
+    SAMPLES_COLLECTION,
+    TRANSCRIPTS_COLLECTION,
+)
 from gens.exceptions import RegionParserException
 from gens.graph import REQUEST, get_cov, overview_chrom_dimensions, parse_region_str
+from gens.models.annotation import TranscriptRecord
 from gens.models.genomic import (
     Chromosome,
     GenomeBuild,
@@ -31,14 +37,19 @@ from gens.models.genomic import (
 LOG = logging.getLogger(__name__)
 
 
-def get_overview_chrom_dim(x_pos, y_pos, plot_width, genome_build) -> dict[str, Any]:
+def get_overview_chrom_dim(
+    x_pos: int, y_pos: int, plot_width: int, genome_build: GenomeBuild
+) -> dict[str, Any]:
     """
     Returns the dimensions of all chromosome graphs in screen coordinates
     for drawing the chromosomes correctly in the overview graph
     """
     LOG.info(
         "Get overview chromosome dim: (%d, %d), w=%d, %s",
-        x_pos, y_pos, plot_width, genome_build
+        x_pos,
+        y_pos,
+        plot_width,
+        genome_build,
     )
     query_result = {
         "status": "ok",
@@ -47,17 +58,18 @@ def get_overview_chrom_dim(x_pos, y_pos, plot_width, genome_build) -> dict[str, 
     return jsonable_encoder(query_result)
 
 
-def get_annotation_sources(genome_build: int):
+def get_annotation_sources(genome_build: int) -> Response:
     """
     Returns available annotation source files
     """
     with current_app.app_context():
-        collection = current_app.config["GENS_DB"][ANNOTATIONS_COLLECTION]
-        sources = collection.distinct("source", {"genome_build": str(genome_build)})
+        db: Database = current_app.config["GENS_DB"]
+        collection = db[ANNOTATIONS_COLLECTION]
+        sources = collection.distinct("source", {"genome_build": genome_build})
     return jsonify(status="ok", sources=sources)
 
 
-def get_annotation_data(region: str, source: str, genome_build: int, collapsed: bool):
+def get_annotation_data(region: str, source: str, genome_build: int, collapsed: bool) -> Any:
     """
     Gets annotation data in requested region and converts the coordinates
     to screen coordinates
@@ -70,39 +82,42 @@ def get_annotation_data(region: str, source: str, genome_build: int, collapsed: 
     genome_build = GenomeBuild(genome_build)
     raw_region = parse_region_str(region, genome_build)
 
-    annotations = []
-    if raw_region is not None:
-        # Get annotations within span [start_pos, end_pos] or annotations that
-        # go over the span
-        zoom_level, parsed_region = raw_region
-        annotations = list(
-            query_records_in_region(
-                record_type=ANNOTATIONS_COLLECTION,
-                region=parsed_region,
-                genome_build=genome_build,
-                source=source,
-                height_order=1 if collapsed else None,
-            )
-        )
+    if raw_region is None:
+        raise ValueError(f"Unsuccessful parsing of region: {region}")
 
-    # Calculate maximum height order
-    max_height_order = (
-        max(annotations, key=lambda e: e.height_order) if annotations else 1
+    annotations = []
+    # Get annotations within span [start_pos, end_pos] or annotations that
+    # go over the span
+    zoom_level, parsed_region = raw_region
+    db: Database = current_app.config["GENS_DB"]
+    annotations = list(
+        query_records_in_region(
+            db,
+            record_type=ANNOTATIONS_COLLECTION,
+            region=parsed_region,
+            genome_build=genome_build,
+            source=source,
+            height_order=1 if collapsed else None,
+        )
     )
+
+    # FIXME: Remove when rendering is handled in frontend
+    max_height_order = 1
 
     query_result = {
         "status": "ok",
-        "chromosome": parsed_region.chromosome,
+        "chromosome": parsed_region.chromosome.value,
         "start_pos": parsed_region.start,
         "end_pos": parsed_region.end,
         "annotations": annotations,
         "max_height_order": max_height_order,
-        "res": zoom_level,
+        "res": zoom_level.value,
     }
+
     return jsonable_encoder(query_result)
 
 
-def get_transcript_data(region: str, genome_build: str, collapsed: bool):
+def get_transcript_data(region: str, genome_build: int, collapsed: bool) -> Any:
     """
     Gets transcript data for requested region and converts the coordinates to
     screen coordinates
@@ -116,14 +131,16 @@ def get_transcript_data(region: str, genome_build: str, collapsed: bool):
 
     # Get transcripts within span [start_pos, end_pos] or transcripts that go over the span
     zoom_level, parsed_region = raw_region
-    transcripts = list(
-        query_records_in_region(
-            record_type=TRANSCRIPTS_COLLECTION,
-            region=parsed_region,
-            genome_build=genome_build_enum,
-            height_order=1 if collapsed else None,
-        )
+    db: Database = current_app.config["GENS_DB"]
+    transcripts = query_records_in_region(
+        db,
+        record_type=TRANSCRIPTS_COLLECTION,
+        region=parsed_region,
+        genome_build=genome_build_enum,
+        height_order=1 if collapsed else None,
     )
+    # To tell which of the alternative types to use
+    transcripts = cast(list[TranscriptRecord], transcripts)
     # Calculate maximum height order
     max_height_order = max(t.height_order for t in transcripts) if transcripts else 1
 
@@ -140,11 +157,14 @@ def get_transcript_data(region: str, genome_build: str, collapsed: bool):
     )
 
 
-def search_annotation(query: str, genome_build: str, annotation_type: str):
+def search_annotation(query: str, genome_build: str, annotation_type: str) -> Any:
     """Search for anntations of genes and return their position."""
     # Lookup queried element
-    collection = current_app.config["GENS_DB"][annotation_type]
-    db_query = {"gene_name": re.compile("^" + re.escape(query) + "$", re.IGNORECASE)}
+    db: Database = current_app.config["GENS_DB"]
+    collection = db[annotation_type]
+    db_query: dict[str, str | re.Pattern[str]] = {
+        "gene_name": re.compile("^" + re.escape(query) + "$", re.IGNORECASE)
+    }
 
     if genome_build and int(genome_build) in GenomeBuild:
         db_query["genome_build"] = genome_build
@@ -170,28 +190,30 @@ def search_annotation(query: str, genome_build: str, annotation_type: str):
     return jsonify({**data, "status": response_code})
 
 
-def get_variant_data(case_id, sample_id, variant_category, **optional_kwargs):
+def get_variant_data(case_id: str, sample_id: str, variant_category: str, **optional_kwargs: dict) -> Any:
     """Search Scout database for variants associated with a case and return info in JSON format."""
     default_height_order = 0
-    base_return = {"status": "ok"}
+    base_return: dict[str, Any] = {"status": "ok"}
     # get optional variables
     genome_build = optional_kwargs.get("genome_build")
     region = optional_kwargs.get("region")
     # if getting variants from specific regions
-    region_params = {}
+    region_params: dict[str, str] = {}
     if region is not None and genome_build is not None:
-        zoom_level, region = parse_region_str(region, genome_build)
+        zoom_level, region = parse_region_str(region, genome_build)  # type: ignore
         base_return = {
             **base_return,
-            **region.model_dump(),
+            **region.model_dump(), # type: ignore
             "res": zoom_level.value,
             "max_height_order": default_height_order,
         }
         # limit renders to b or greater resolution
     # query variants
     try:
+        db: Database = current_app.config["SCOUT_DB"]
         variants = list(
             query_variants(
+                db,
                 case_id,
                 sample_id,
                 VariantCategory(variant_category),
@@ -213,17 +235,14 @@ def get_variant_data(case_id, sample_id, variant_category, **optional_kwargs):
     )
 
 
-def get_multiple_coverages() -> dict[str, Any]:
+def get_multiple_coverages() -> dict[str, Any] | tuple[Any, int]:
     """Read default Log2 ratio and BAF values for overview graph."""
-    if connexion.request.is_json:
-        data = QueryChromosomeCoverage(**connexion.request.get_json())
-    else:
-        return data, 404
+    data = QueryChromosomeCoverage(**connexion.request.get_json())
     LOG.info("Got request for all chromosome coverages: %s", data.sample_id)
 
     # read sample information
-    db = current_app.config["GENS_DB"]
-    sample_obj = query_sample(db, data.sample_id, data.case_id)
+    db: Database = current_app.config["GENS_DB"]
+    sample_obj = query_sample(db[SAMPLES_COLLECTION], data.sample_id, data.case_id)
     # Try to find and load an overview json data file
     json_data, cov_file, baf_file = None, None, None
     if sample_obj.overview_file.is_file():
@@ -282,19 +301,19 @@ def get_multiple_coverages() -> dict[str, Any]:
 def get_coverage(
     sample_id: str,
     case_id: str,
-    region,
-    x_pos,
-    y_pos,
-    plot_height,
-    top_bottom_padding,
-    baf_y_start,
-    baf_y_end,
-    log2_y_start,
-    log2_y_end,
-    genome_build,
-    reduce_data,
-    x_ampl,
-):
+    region: str,
+    x_pos: int,
+    y_pos: int,
+    plot_height: int,
+    top_bottom_padding: int,
+    baf_y_start: int,
+    baf_y_end: int,
+    log2_y_start: int,
+    log2_y_end: int,
+    genome_build: GenomeBuild,
+    reduce_data: Any,
+    x_ampl: Any,
+) -> Any:
     """
     Reads and formats Log2 ratio and BAF values for overview graph
     Returns the coverage in screen coordinates for frontend rendering
@@ -319,10 +338,10 @@ def get_coverage(
         genome_build,
         reduce_data,
     )
-    db = current_app.config["GENS_DB"]
+    db: Database = current_app.config["GENS_DB"]
 
     # TODO respond with 404 error if file is not found
-    sample_obj = query_sample(db, sample_id, case_id)
+    sample_obj = query_sample(db[SAMPLES_COLLECTION], sample_id, case_id)
     cov_file = TabixFile(str(sample_obj.coverage_file))
     baf_file = TabixFile(str(sample_obj.baf_file))
 
@@ -354,9 +373,9 @@ def get_coverage(
     return jsonable_encoder(query_result)
 
 
-def get_chromosome_info(chromosome, genome_build):
+def get_chromosome_info(chromosome: str, genome_build: int) -> Any:
     """Query the database for information on a chromosome."""
-    db = current_app.config["GENS_DB"]
+    db: Database = current_app.config["GENS_DB"]
 
     # validate input
     genome_build = GenomeBuild(genome_build)

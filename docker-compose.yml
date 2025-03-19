@@ -1,21 +1,14 @@
 # example of how to run deployment version of Gens
 services:
   mongodb:
-    container_name: mongodb
     image: mongo:4.4.9
     networks:
       - gens-net
   gens:
-    container_name: gens
     build: .
     volumes:
       - ./volumes/gens/data:/home/app/data
       - ./volumes/gens/wgs:/home/app/access/wgs
-    environment:
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - SCOUT_DBNAME=scout
-      - GENS_DBNAME=gens
     expose:
       - '5000'
     ports:

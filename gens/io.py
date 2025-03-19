@@ -4,7 +4,6 @@ import itertools
 import logging
 from enum import Enum
 from fractions import Fraction
-from typing import Iterator
 
 from pysam import TabixFile
 
@@ -42,16 +41,15 @@ def tabix_query(
 
     # Get data from bed file
     record_name = f"{zoom_level.value}_{chrom.value}"
-    LOG.info("Query %s; %s %d %d; reduce: %d", tbix.filename, record_name, start, end, reduce)
     try:
-        records: Iterator[str] = tbix.fetch(record_name, start, end)
+        records = tbix.fetch(record_name, start, end)
     except ValueError as err:
         LOG.error(err)
-        records = []
+        records = iter([])
 
     if reduce is not None:
         n_true, tot = Fraction(reduce).limit_denominator(1000).as_integer_ratio()
         cmap = itertools.cycle([1] * n_true + [0] * (tot - n_true))
-        records: Iterator[str] = itertools.compress(records, cmap)
+        records = itertools.compress(records, cmap)
 
     return [r.split("\t") for r in records]

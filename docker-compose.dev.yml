@@ -4,6 +4,7 @@ services:
   mongodb:
     volumes:
       - ./volumes/mongodb/data:/data/db
+      - ./dump:/dump
   gens:
     build:
       context: .
@@ -15,9 +16,11 @@ services:
       - mongodb
     environment:
       - FLASK_ENV=development
+      - AUTHENTICATION=disabled
     ports:
       - 8080:5000
     volumes:
-      - ./dump:/home/worker/dump
+      - ./dump:/dump
       - ./gens:/home/worker/gens
+      - ./tests:/home/worker/tests
       - ./utils:/home/worker/utils
