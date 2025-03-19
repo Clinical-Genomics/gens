@@ -1,25 +1,54 @@
+"""Commands for loading annotations, transcripts and samples to the database."""
+
+import gzip
 import logging
 from pathlib import Path
+from typing import Any, TextIO
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
-from pymongo import ASCENDING
+from pymongo.database import Database
 
-from gens.constants import GENOME_BUILDS
-from gens.db import (ANNOTATIONS_COLLECTION, CHROMSIZES_COLLECTION,
-                     SAMPLES_COLLECTION, TRANSCRIPTS_COLLECTION, create_index,
-                     get_indexes, register_data_update, store_sample)
-from gens.load import (ParserError, build_chromosomes_obj, build_transcripts,
-                       get_assembly_info, parse_annotation_entry,
-                       parse_annotation_file, update_height_order)
+from gens.commands.util import ChoiceType
+from gens.config import settings
+from gens.db import (
+    create_index,
+    get_db_connection,
+    get_indexes,
+    register_data_update,
+    store_sample,
+)
+from gens.db.collections import (
+    ANNOTATIONS_COLLECTION,
+    CHROMSIZES_COLLECTION,
+    SAMPLES_COLLECTION,
+    TRANSCRIPTS_COLLECTION,
+)
+from gens.load import (
+    build_chromosomes_obj,
+    build_transcripts,
+    get_assembly_info,
+    parse_annotation_entry,
+    read_annotation_file,
+    update_height_order,
+)
+from gens.models.annotation import AnnotationRecord
+from gens.models.genomic import GenomeBuild
 
 LOG = logging.getLogger(__name__)
-valid_genome_builds = [str(gb) for gb in GENOME_BUILDS]
+
+
+def open_text_or_gzip(file_path: str) -> TextIO:
+    """Click callback to allow reading both text and gzipped files"""
+    if file_path.endswith(".gz"):
+        return gzip.open(file_path, "rt", encoding="utf-8")
+
+    return open(file_path, "r", encoding="utf-8")
 
 
 @click.group()
-def load():
+def load() -> None:
     """Load information into Gens database"""
 
 
@@ -28,7 +57,7 @@ def load():
 @click.option(
     "-b",
     "--genome-build",
-    type=click.Choice(valid_genome_builds),
+    type=ChoiceType(GenomeBuild),
     required=True,
     help="Genome build",
 )
@@ -64,15 +93,23 @@ def load():
     help="Overwrite any existing sample with the same key.",
 )
 @with_appcontext
-def sample(sample_id, genome_build, baf, coverage, case_id, overview_json, force):
+def sample(
+    sample_id: str,
+    genome_build: GenomeBuild,
+    baf: Path,
+    coverage: Path,
+    case_id: str,
+    overview_json: Path,
+    force: bool,
+) -> None:
     """Load a sample into Gens database."""
-    db = app.config["GENS_DB"]
+    db: Database[Any] = app.config["GENS_DB"]
     # if collection is not indexed, create index
     if len(get_indexes(db, SAMPLES_COLLECTION)) == 0:
         create_index(db, SAMPLES_COLLECTION)
     # load samples
     store_sample(
-        db,
+        db[SAMPLES_COLLECTION],
         sample_id=sample_id,
         case_id=case_id,
         genome_build=genome_build,
@@ -95,14 +132,25 @@ def sample(sample_id, genome_build, baf, coverage, case_id, overview_json, force
 @click.option(
     "-b",
     "--genome-build",
-    type=click.Choice(valid_genome_builds),
+    type=ChoiceType(GenomeBuild),
     required=True,
     help="Genome build",
 )
-@with_appcontext
-def annotations(file, genome_build):
+@click.option(
+    "-h",
+    "--header",
+    "has_header",
+    is_flag=True,
+    help="If bed file contains a header",
+)
+def annotations(file: str, genome_build: GenomeBuild, has_header: bool) -> None:
     """Load annotations from file into the database."""
-    db = app.config["GENS_DB"]
+    gens_db_name = settings.gens_db.database
+    if gens_db_name is None:
+        raise ValueError(
+            "No Gens database name provided in settings (settings.gens_db.database)"
+        )
+    db = get_db_connection(settings.gens_db.connection, db_name=gens_db_name)
     # if collection is not indexed, create index
     if len(get_indexes(db, ANNOTATIONS_COLLECTION)) == 0:
         create_index(db, ANNOTATIONS_COLLECTION)
@@ -114,75 +162,82 @@ def annotations(file, genome_build):
         # verify file format
         if annot_file.suffix not in [".bed", ".aed"]:
             continue
-        LOG.info(f"Processing {annot_file}")
+        LOG.info("Processing %s", annot_file)
         # base the annotation name on the filename
         annotation_name = annot_file.name[: -len(annot_file.suffix)]
-        parser = parse_annotation_file(
-            annot_file, file_format=annot_file.suffix[1:]
-        )
-        annotation_obj = []
-        for entry in parser:
-            try:
-                entry_obj = parse_annotation_entry(
-                    entry, genome_build, annotation_name
-                )
-                annotation_obj.append(entry_obj)
-            except ParserError as err:
-                LOG.warning(str(err))
-                continue
+        parsed_annotations: list[AnnotationRecord] = []
+        for entry in read_annotation_file(
+            annot_file, annot_file.suffix[1:], has_header
+        ):
+            entry_obj = parse_annotation_entry(entry, genome_build, annotation_name)
+            if entry_obj is not None:
+                parsed_annotations.append(entry_obj)
 
+        if len(parsed_annotations) == 0:
+            raise ValueError("Something went wrong parsing the annotaions file.")
         # Remove existing annotations in database
-        LOG.info("Removing old entry from the database")
+        LOG.info("Removing old entries from the database")
         db[ANNOTATIONS_COLLECTION].delete_many({"source": annotation_name})
         # add the annotations
         LOG.info("Loading annotations into the database")
-        db[ANNOTATIONS_COLLECTION].insert_many(annotation_obj)
-        LOG.info("Updating height order")
+        db[ANNOTATIONS_COLLECTION].insert_many(
+            [annot.model_dump() for annot in parsed_annotations]
+        )
         # update the height order of annotations in the database
+        LOG.info("Update height order")
         update_height_order(db, annotation_name)
-        register_data_update(ANNOTATIONS_COLLECTION, name=annotation_name)
+        register_data_update(
+            db=db, track_type=ANNOTATIONS_COLLECTION, name=annotation_name
+        )
     click.secho("Finished loading annotations ✔", fg="green")
-
-
-@load.command()
-@click.option("-f", "--file", type=click.File(), help="Transcript file")
-@click.option("-m", "--mane", type=click.File(), required=True, help="Mane file")
-@click.option(
-    "-b",
-    "--genome-build",
-    type=click.Choice(valid_genome_builds),
-    required=True,
-    help="Genome build",
-)
-@with_appcontext
-def transcripts(file, mane, genome_build):
-    """Load transcripts into the database."""
-    db = app.config["GENS_DB"]
-    # if collection is not indexed, create index
-    if len(get_indexes(db, TRANSCRIPTS_COLLECTION)) > 0:
-        create_index(db, TRANSCRIPTS_COLLECTION)
-    LOG.info("Building transcript object")
-    try:
-        transcripts = build_transcripts(file, mane, genome_build)
-    except Exception as err:
-        raise click.UsageError(str(err))
-    LOG.info("Add transcripts to database")
-    db[TRANSCRIPTS_COLLECTION].insert_many(transcripts)
-    register_data_update(TRANSCRIPTS_COLLECTION)
-    click.secho("Finished loading transcripts ✔", fg="green")
 
 
 @load.command()
 @click.option(
     "-f",
     "--file",
-    type=click.File(),
-    help="Chromosome sizes in tsv format",
+    required=True,
+    help="GTF transcript file (.gtf or .gtf.gz)",
+)
+@click.option(
+    "-m",
+    "--mane",
+    required=True,
+    help="Mane summary file (.txt or .txt.gz)",
 )
 @click.option(
     "-b",
     "--genome-build",
-    type=click.Choice(valid_genome_builds),
+    type=ChoiceType(GenomeBuild),
+    required=True,
+    help="Genome build",
+)
+@with_appcontext
+def transcripts(file: str, mane: str, genome_build: GenomeBuild) -> None:
+    """Load transcripts into the database."""
+
+    db: Database = app.config["GENS_DB"]
+    # if collection is not indexed, create index
+    if len(get_indexes(db, TRANSCRIPTS_COLLECTION)) == 0:
+        create_index(db, TRANSCRIPTS_COLLECTION)
+    LOG.info("Building transcript object")
+    try:
+        with open_text_or_gzip(file) as file_fh, open_text_or_gzip(mane) as mane_fh:
+            transcripts_obj = build_transcripts(file_fh, mane_fh, genome_build)
+    except Exception as err:
+        raise click.UsageError(str(err))
+
+    LOG.info("Add transcripts to database")
+    db[TRANSCRIPTS_COLLECTION].insert_many(transcripts_obj)
+    register_data_update(db, TRANSCRIPTS_COLLECTION)
+    click.secho("Finished loading transcripts ✔", fg="green")
+
+
+@load.command()
+@click.option(
+    "-b",
+    "--genome-build",
+    type=ChoiceType(GenomeBuild),
     required=True,
     help="Genome build",
 )
@@ -194,15 +249,15 @@ def transcripts(file, mane, genome_build):
     help="Timeout for queries.",
 )
 @with_appcontext
-def chromosome_info(file, genome_build, timeout):
+def chromosome_info(genome_build: GenomeBuild, timeout: int) -> None:
     """Load chromosome size information into the database."""
-    db = app.config["GENS_DB"]
+    db: Database = app.config["GENS_DB"]
     # if collection is not indexed, create index
     if len(get_indexes(db, CHROMSIZES_COLLECTION)) == 0:
         create_index(db, CHROMSIZES_COLLECTION)
     # get chromosome info from ensemble
     # if file is given, use sizes from file else download chromsizes from ebi
-    LOG.info(f"Query ensembl for assembly info for {genome_build}")
+    LOG.info("Query ensembl for assembly info for %s", genome_build)
     assembly_info = get_assembly_info(genome_build, timeout=timeout)
     # index chromosome on name
     chrom_data = {
@@ -216,14 +271,17 @@ def chromosome_info(file, genome_build, timeout):
         chromosomes_data = build_chromosomes_obj(chrom_data, genome_build, timeout)
     except Exception as err:
         raise click.UsageError(str(err))
+
     # remove old entries
     res = db[CHROMSIZES_COLLECTION].delete_many({"genome_build": int(genome_build)})
     LOG.info(
-        f"Removed {res.deleted_count} old entries with genome build: {genome_build}"
+        "Removed %d old entries with genome build: %s", res.deleted_count, genome_build
     )
     # insert collection
     LOG.info("Add chromosome info to database")
-    db[CHROMSIZES_COLLECTION].insert_many(chromosomes_data)
-    register_data_update(CHROMSIZES_COLLECTION)
+    db[CHROMSIZES_COLLECTION].insert_many(
+        [chr.model_dump() for chr in chromosomes_data]
+    )
+    register_data_update(db, CHROMSIZES_COLLECTION)
     # build cytogenetic data
     click.secho("Finished updating chromosome sizes ✔", fg="green")

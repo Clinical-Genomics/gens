@@ -6,10 +6,10 @@ from flask.cli import FlaskGroup
 from gens.__version__ import VERSION as version
 from gens.app import create_app
 
+from .delete import delete as delete_command
 from .index import index as index_command
 from .load import load as load_command
 from .view import view as view_command
-from .delete import delete as delete_command
 
 
 @click.group(
@@ -19,9 +19,8 @@ from .delete import delete as delete_command
     add_version_option=False,
 )
 @click.version_option(version)
-def cli(*args, **kwargs):
+def cli() -> None:
     """Management of Gens application"""
-    pass
 
 
 cli.add_command(index_command)

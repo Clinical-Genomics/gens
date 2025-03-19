@@ -1,13 +1,15 @@
 """Function for reading information from the database."""
 
-import datetime
 import logging
 from collections import defaultdict
 from itertools import groupby
+from typing import Any
 
-from flask import current_app as app
+from pymongo.database import Database
 
-from .models import VariantCategory
+from gens.models.annotation import AnnotationRecord, TranscriptRecord
+from gens.models.genomic import GenomeBuild, GenomicRegion, VariantCategory
+from gens.utils import get_timestamp
 
 LOG = logging.getLogger(__name__)
 
@@ -17,26 +19,25 @@ TRANSCRIPTS = "transcripts"
 UPDATES = "updates"
 
 
-def register_data_update(track_type, name=None):
+def register_data_update(db: Database, track_type: str, name: str | None = None) -> None:
     """Register that a track was updated."""
-    db = app.config["GENS_DB"][UPDATES]
-    LOG.debug(f"Creating timestamp for {track_type}")
-    track = {"track": track_type, "name": name}
-    db.delete_many(track)  # remove old track
-    db.insert_one({**track, "timestamp": datetime.datetime.now()})
+    LOG.debug("Creating timestamp for %s", track_type)
+    track: dict[str, str | None] = {"track": track_type, "name": name}
+    db[UPDATES].delete_many(track)  # remove old track
+    db[UPDATES].insert_one({**track, "timestamp": get_timestamp()})
 
 
-def get_timestamps(track_type="all"):
+def get_timestamps(gens_db: Database, track_type: str = "all") -> dict[str, list[dict[str, Any]]]:
     """Get when a annotation track was last updated."""
-    LOG.debug(f"Reading timestamp for {track_type}")
-    db = app.config["GENS_DB"][UPDATES]
+    LOG.debug("Reading timestamp for %s", track_type)
+    updates_coll = gens_db[UPDATES]
     if track_type == "all":
-        query = db.find()
+        query = updates_coll.find()
     else:
-        query = db.find({"track": track_type})
+        query = updates_coll.find({"track": track_type})
 
     # build results from query
-    results = defaultdict(list)
+    results: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for key, entries in groupby(query, key=lambda x: x["track"]):
         for entry in entries:
             results[key].append(
@@ -49,7 +50,13 @@ def get_timestamps(track_type="all"):
     return results
 
 
-def query_variants(case_id: str, sample_name: str, variant_category: VariantCategory, **kwargs):
+def query_variants(
+    scout_db: Database,
+    case_id: str,
+    sample_name: str,
+    variant_category: VariantCategory,
+    **kwargs: str,
+) -> Any:
     """Search the scout database for variants associated with a case.
 
     case_id :: id for a case
@@ -58,31 +65,30 @@ def query_variants(case_id: str, sample_name: str, variant_category: VariantCate
 
     Kwargs are optional search parameters that are passed to db.find().
     """
-    db = app.config["SCOUT_DB"]
     # build query
     query = {
         "case_id": case_id,
         "category": variant_category.value,
-        "$or": [{"samples.sample_id": sample_name},
-                {"samples.display_name": sample_name}]
+        "$or": [
+            {"samples.sample_id": sample_name},
+            {"samples.display_name": sample_name},
+        ],
     }
     # add chromosome
     if "chromosome" in kwargs:
-        query["chromosome"] = kwargs["chromosome"]
+        query["chromosome"] = kwargs["chromosome"].value  # type: ignore
     # add start, end position to query
     if all(param in kwargs for param in ["start_pos", "end_pos"]):
         query = {
             **query,
-            **_make_query_region(
-                kwargs["start_pos"], kwargs["end_pos"], variant_category.value
-            ),
+            **_make_query_region(kwargs["start_pos"], kwargs["end_pos"], variant_category.value),  # type: ignore
         }
     # query database
-    LOG.info(f"Query variant database: {query}")
-    return db.variant.find(query)
+    LOG.info("Query variant database: %s", query)
+    return scout_db.variant.find(query)
 
 
-def _make_query_region(start_pos: int, end_pos: int, motif_type="other"):
+def _make_query_region(start_pos: int, end_pos: int, motif_type: str = "other") -> Any:
     """Make a query for a chromosomal region."""
     if motif_type == "sv":  # for sv are start called position
         start_name = "position"
@@ -99,20 +105,29 @@ def _make_query_region(start_pos: int, end_pos: int, motif_type="other"):
 
 
 def query_records_in_region(
-    record_type,
-    chrom,
-    start_pos,
-    end_pos,
-    genome_build,
-    height_order=None,
-    **kwargs,
-):
+    gens_db: Database,
+    record_type: str,
+    region: GenomicRegion,
+    genome_build: GenomeBuild,
+    height_order: int | None = None,
+    **kwargs: str,
+) -> list[AnnotationRecord] | list[TranscriptRecord]:
     """Query the gens database for transcript information."""
+
+    region_start = region.start
+    region_end = region.end
+
+    # FIXME: Not necessary after adding a region type known to have start and end
+    if not region_start or not region_end:
+        raise ValueError(
+            f"Expected region.start and region.end, found start: {region_start} end: {region_end}"
+        )
+
     # build base query
     query = {
-        "chrom": chrom,
-        "genome_build": genome_build,
-        **_make_query_region(start_pos, end_pos),
+        "chrom": region.chromosome.value,
+        "genome_build": genome_build.value,
+        **_make_query_region(region_start, region_end),
         **kwargs,  # add optional search params
     }
     # build sort order
@@ -121,7 +136,12 @@ def query_records_in_region(
         sort_order.append(("height_order", 1))
     else:
         query["height_order"] = height_order
+
     # query database
-    return app.config["GENS_DB"][record_type].find(
-        query, {"_id": False}, sort=sort_order
-    )
+    cursor = gens_db[record_type].find(query, {"_id": False}, sort=sort_order)
+
+    if record_type == "annotations":
+        return [AnnotationRecord(**doc) for doc in cursor]
+    if record_type == "transcripts":
+        return [TranscriptRecord(**doc) for doc in cursor]
+    raise ValueError(f"unknown record type {record_type}")

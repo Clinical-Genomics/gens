@@ -2,12 +2,16 @@
 
 import logging
 import os
+from typing import Any
 
 from flask import Blueprint, current_app, render_template, request
-from flask_login import current_user
+from pymongo.database import Database
 
 from gens import version
+from gens.config import settings
 from gens.db import get_samples, get_timestamps
+from gens.db.collections import SAMPLES_COLLECTION
+from gens.models.sample import SampleInfo
 
 LOG = logging.getLogger(__name__)
 
@@ -34,12 +38,14 @@ home_bp = Blueprint(
 # define views
 @home_bp.route("/", methods=["GET", "POST"])
 @home_bp.route("/home", methods=["GET", "POST"])
-def home():
-    db = current_app.config["GENS_DB"]
+def home() -> str:
+    """Gens home page with list of all samples."""
+
+    db: Database = current_app.config["GENS_DB"]
     # set pagination
     page = request.args.get("page", 1, type=int)
     start = (page - 1) * SAMPLES_PER_PAGE
-    samples, total_samples = get_samples(db, start=start, n_samples=SAMPLES_PER_PAGE)
+    samples, total_samples = get_samples(db[SAMPLES_COLLECTION], start=start, n_samples=SAMPLES_PER_PAGE)
     # calculate pagination
     pagination_info = {
         "from": start + 1,
@@ -51,7 +57,6 @@ def home():
             else (total_samples // SAMPLES_PER_PAGE) + 1
         ),
     }
-    # parse samples
     samples = [
         {
             "sample_id": smp.sample_id,
@@ -69,15 +74,17 @@ def home():
         pagination=pagination_info,
         samples=samples,
         total_samples=total_samples,
-        scout_base_url=current_app.config.get("SCOUT_BASE_URL"),
+        scout_base_url=str(settings.scout_url),
         version=version,
     )
 
 
 @home_bp.route("/about")
-def about():
+def about() -> str:
+    """Gens about page with rudimentary statistics."""
     with current_app.app_context():
-        timestamps = get_timestamps()
+        db: Database = current_app.config["GENS_DB"]
+        timestamps = get_timestamps(db)
         config = {cnf: current_app.config.get(cnf) for cnf in IN_CONFIG}
         ui_colors = current_app.config.get("UI_COLORS")
     return render_template(
@@ -89,15 +96,18 @@ def about():
     )
 
 
-def public_endpoint(function):
+def public_endpoint(fn: Any) -> Any:
     """Set an endpoint as public"""
-    function.is_public = True
-    return function
+    fn.is_public = True
+    return fn
 
 
 @home_bp.route("/landing")
 @public_endpoint
-def landing():
+def landing() -> str:
+    """Gens landing page."""
 
-    return render_template("landing.html",
-                           version=version,)
+    return render_template(
+        "landing.html",
+        version=version,
+    )

@@ -3,7 +3,13 @@ pytest
 pytest-cov
 pytest-flask
 pytest-mongodb
+coveralls
+mongomock
 
 # utils
+pylint
 black
 isort
+mypy
+types-requests
+types-tabulate

@@ -4,12 +4,14 @@ import logging
 from datetime import date
 
 from flask import Blueprint, abort, current_app, render_template, request
+from pymongo.database import Database
 
 from gens import version
-from gens.cache import cache
+from gens.config import UI_COLORS, settings
 from gens.db import query_sample
+from gens.db.collections import SAMPLES_COLLECTION
 from gens.graph import parse_region_str
-from gens.io import _get_filepath
+from gens.models.genomic import GenomeBuild
 
 LOG = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ gens_bp = Blueprint(
 
 
 @gens_bp.route("/<path:sample_name>", methods=["GET"])
-def display_case(sample_name):
+def display_case(sample_name: str) -> str:
     """
     Renders the Gens template
     Expects sample_id as input to be able to load the sample data
@@ -32,7 +34,9 @@ def display_case(sample_name):
     if case_id is None:
         raise ValueError("You must provide a case id when opening a sample.")
     individual_id = request.args.get("individual_id", sample_name)
-    
+    if not individual_id:
+        raise ValueError(f"Expected individual_id, found: {individual_id}")
+
     # get genome build and region
     region = request.args.get("region", None)
     print_page = request.args.get("print_page", "false")
@@ -42,46 +46,54 @@ def display_case(sample_name):
 
     # Parse region, default to grch38
     with current_app.app_context():
-        genome_build = request.args.to_dict().get("genome_build", "38")
+        genome_build = GenomeBuild(int(request.args.get("genome_build", "38")))
 
     parsed_region = parse_region_str(region, genome_build)
     if not parsed_region:
         abort(416)
 
     # verify that sample has been loaded
-    db = current_app.config["GENS_DB"]
-    sample = query_sample(db, individual_id, case_id, genome_build)
+    db: Database = current_app.config["GENS_DB"]
 
     # Check that BAF and Log2 file exists
-    try:
-        _get_filepath(sample.baf_file)
-        _get_filepath(sample.coverage_file)
-        if sample.overview_file:  # verify json if it exists
-            _get_filepath(sample.overview_file)
-    except FileNotFoundError as err:
-        raise err
-    else:
-        LOG.info(f"Found BAF and COV files for {sample_name}")
+    # FIXME move checks to the API instead
+    _ = query_sample(db[SAMPLES_COLLECTION], individual_id, case_id)
+
     # which variant to highlight as focused
     selected_variant = request.args.get("variant")
 
     # get annotation track
-    annotation = request.args.get(
-        "annotation", current_app.config["DEFAULT_ANNOTATION_TRACK"]
-    )
+    annotation = request.args.get("annotation", settings.default_annotation_track)
 
-    _, chrom, start_pos, end_pos = parsed_region
+    (_, region) = parsed_region
+
+    # FIXME: This is due to mypys lack of understanding of the "computer_field" in the pydantic models
+    # Look into how to resolve this
+    chromosome = region.chromosome.value  # type: ignore
+    start_pos = region.start  # type: ignore
+    end_pos = region.end  # type: ignore
+
+    if chromosome is None:
+        raise ValueError("Expected a region with a valid chromosome value")
+
+    if start_pos is None:
+        raise ValueError("Expected a region with a valid start value")
+
+    if end_pos is None:
+        raise ValueError("Expected a region with a valid end value")
+
+
     return render_template(
         "gens.html",
-        ui_colors=current_app.config["UI_COLORS"],
+        ui_colors=UI_COLORS,
         scout_base_url=current_app.config.get("SCOUT_BASE_URL"),
-        chrom=chrom,
+        chrom=chromosome,
         start=start_pos,
         end=end_pos,
         sample_name=sample_name,
         individual_id=individual_id,
         case_id=case_id,
-        genome_build=genome_build,
+        genome_build=genome_build.value,
         print_page=print_page,
         annotation=annotation,
         selected_variant=selected_variant,

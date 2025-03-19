@@ -1,21 +1,24 @@
+"""CLI commands for removing entries from the database."""
+
 import logging
-from pathlib import Path
 
 import click
 from flask import current_app as app
 from flask.cli import with_appcontext
-from pymongo import ASCENDING
+from pymongo.database import Database
 
-from gens.constants import GENOME_BUILDS
-from gens.db import (SAMPLES_COLLECTION, create_index,
-                     get_indexes, delete_sample)
+from gens.commands.util import ChoiceType
+from gens.db.collections import SAMPLES_COLLECTION
+from gens.db.index import create_index, get_indexes
+from gens.db.samples import delete_sample
+from gens.models.genomic import GenomeBuild
 
 LOG = logging.getLogger(__name__)
-valid_genome_builds = [str(gb) for gb in GENOME_BUILDS]
+valid_genome_builds = [str(gb.value) for gb in GenomeBuild]
 
 
 @click.group()
-def delete():
+def delete() -> None:
     """Delete information from Gens database"""
 
 
@@ -24,7 +27,7 @@ def delete():
 @click.option(
     "-b",
     "--genome-build",
-    type=click.Choice(valid_genome_builds),
+    type=ChoiceType(GenomeBuild),
     required=True,
     help="Genome build",
 )
@@ -35,14 +38,14 @@ def delete():
     help="Id of case",
 )
 @with_appcontext
-def sample(sample_id, genome_build, case_id):
+def sample(sample_id: str, genome_build: int, case_id: str) -> None:
     """Remove a sample from Gens database."""
-    db = app.config["GENS_DB"]
+    db: Database = app.config["GENS_DB"]
     # if collection is not indexed, create index
     if len(get_indexes(db, SAMPLES_COLLECTION)) == 0:
         create_index(db, SAMPLES_COLLECTION)
     delete_sample(
-        db,
+        db[SAMPLES_COLLECTION],
         sample_id=sample_id,
         case_id=case_id,
         genome_build=genome_build,
