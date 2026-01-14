@@ -1,26 +1,21 @@
 """About the software page."""
 
 import logging
-import os
+from typing import Any
 
 from flask import Blueprint, current_app, render_template, request
-from flask_login import current_user
+from pymongo.database import Database
 
-from gens import version
-from gens.db import get_samples, get_timestamps
+from gens.__version__ import VERSION as version
+from gens.config import settings
+from gens.crud.annotations import get_data_update_timestamp
+from gens.crud.samples import get_samples_per_case
+from gens.db.collections import SAMPLES_COLLECTION
+from gens.models.genomic import GenomeBuild
 
 LOG = logging.getLogger(__name__)
 
 SAMPLES_PER_PAGE = 20
-
-IN_CONFIG = (
-    "ENV",
-    "DEFAULT_ANNOTATION_TRACK",
-    "GENS_DBNAME",
-    "SCOUT_DBNAME",
-    "MONGODB_HOST",
-    "MONGODB_PORT",
-)
 
 home_bp = Blueprint(
     "home",
@@ -34,51 +29,50 @@ home_bp = Blueprint(
 # define views
 @home_bp.route("/", methods=["GET", "POST"])
 @home_bp.route("/home", methods=["GET", "POST"])
-def home():
-    db = current_app.config["GENS_DB"]
+def home() -> str:
+    """Gens home page with list of all samples."""
+
+    db: Database = current_app.config["GENS_DB"]
     # set pagination
-    page = request.args.get("page", 1, type=int)
-    start = (page - 1) * SAMPLES_PER_PAGE
-    samples, total_samples = get_samples(db, start=start, n_samples=SAMPLES_PER_PAGE)
-    # calculate pagination
-    pagination_info = {
-        "from": start + 1,
-        "to": start + SAMPLES_PER_PAGE,
-        "current_page": page,
-        "last_page": (
-            total_samples // SAMPLES_PER_PAGE
-            if total_samples % SAMPLES_PER_PAGE == 0
-            else (total_samples // SAMPLES_PER_PAGE) + 1
-        ),
-    }
-    # parse samples
-    samples = [
+    samples_per_case = get_samples_per_case(db.get_collection(SAMPLES_COLLECTION))
+    parsed_samples = [
         {
-            "sample_id": smp.sample_id,
-            "case_id": smp.case_id,
-            "genome_build": smp.genome_build,
-            "has_overview_file": smp.overview_file is not None,
-            "files_present": os.path.isfile(smp.baf_file)
-            and os.path.isfile(smp.coverage_file),
-            "created_at": smp.created_at.strftime("%Y-%m-%d"),
+            "case_id": case_id,
+            "sample_ids": [s["sample_id"] for s in samples],
+            "genome_build": samples[0]["genome_build"],
+            "has_overview_file": len([s for s in samples if not s["has_overview_file"]])
+            == 0,
+            "files_present": len([s for s in samples if not s["files_present"]]) == 0,
+            "created_at": samples[0]["created_at"],
         }
-        for smp in samples
+        for (case_id, samples) in samples_per_case.items()
     ]
+
+    with current_app.app_context():
+        genome_build = GenomeBuild(int(request.args.get("genome_build", "38")))
+
     return render_template(
         "home.html",
-        pagination=pagination_info,
-        samples=samples,
-        total_samples=total_samples,
-        scout_base_url=current_app.config.get("SCOUT_BASE_URL"),
+        samples=parsed_samples,
+        total_samples=len(samples_per_case),
+        variant_software_base_url=settings.variant_url,
+        gens_api_url=str(settings.gens_api_url),
+        main_sample_types=settings.main_sample_types,
+        genome_build=genome_build.value,
         version=version,
     )
 
 
 @home_bp.route("/about")
-def about():
+def about() -> str:
+    """Gens about page with rudimentary statistics."""
     with current_app.app_context():
-        timestamps = get_timestamps()
-        config = {cnf: current_app.config.get(cnf) for cnf in IN_CONFIG}
+        db: Database[Any] = current_app.config["GENS_DB"]
+        timestamps = get_data_update_timestamp(db)
+        print("Printing config")
+        print(current_app.config)
+        config = settings.get_dict()
+        config["ENV"] = current_app.config.get("ENV")
         ui_colors = current_app.config.get("UI_COLORS")
     return render_template(
         "about.html",
@@ -89,15 +83,19 @@ def about():
     )
 
 
-def public_endpoint(function):
+def public_endpoint(fn: Any) -> Any:
     """Set an endpoint as public"""
-    function.is_public = True
-    return function
+    fn.is_public = True
+    return fn
 
 
 @home_bp.route("/landing")
 @public_endpoint
-def landing():
+def landing() -> str:
+    """Gens landing page."""
 
-    return render_template("landing.html",
-                           version=version,)
+    return render_template(
+        "landing.html",
+        authentication=settings.authentication,
+        version=version,
+    )

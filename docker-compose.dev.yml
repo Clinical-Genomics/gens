@@ -4,6 +4,7 @@ services:
   mongodb:
     volumes:
       - ./volumes/mongodb/data:/data/db
+      - ./dump:/dump
   gens:
     build:
       context: .
@@ -14,10 +15,12 @@ services:
     depends_on:
       - mongodb
     environment:
-      - FLASK_ENV=development
+      - FLASK_DEBUG=1
     ports:
       - 8080:5000
     volumes:
-      - ./dump:/home/worker/dump
+      - ./dump:/dump
       - ./gens:/home/worker/gens
+      - ./tests:/home/worker/tests
       - ./utils:/home/worker/utils
+    command: uvicorn gens.app:create_app --reload --log-level debug --host 0.0.0.0 --port 5000

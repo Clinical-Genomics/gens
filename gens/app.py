@@ -1,21 +1,27 @@
 """
 Whole genome visualization of BAF and log2 ratio
 """
+
 import logging
-import os
 from logging.config import dictConfig
 
-import connexion
-from flask import redirect, request, url_for
-from flask_compress import Compress
-from flask_login import current_user
+from asgiref.wsgi import WsgiToAsgi
+from fastapi import FastAPI
+from flask import Flask, redirect, request, url_for
+from flask_compress import Compress  # type: ignore
+from flask_login import current_user  # type: ignore
+from werkzeug.wrappers.response import Response
 
-from .__version__ import VERSION as version
-from .blueprints import gens_bp, home_bp, login_bp
-from .cache import cache
-from .db import SampleNotFoundError, init_database
-from .errors import (generic_abort_error, generic_exception_error, sample_not_found)
-from .extensions import login_manager, oauth_client
+from gens.blueprints.gens.views import gens_bp
+from gens.blueprints.home.views import home_bp
+from gens.blueprints.login.views import login_bp
+from gens.db.db import init_database_connection
+from gens.exceptions import SampleNotFoundError
+
+from .auth import login_manager, oauth_client
+from .config import AuthMethod, settings
+from .errors import generic_abort_error, generic_exception_error, sample_not_found
+from .routes import annotations, base, gene_lists, sample, sample_annotations
 
 dictConfig(
     {
@@ -40,90 +46,98 @@ LOG = logging.getLogger(__name__)
 compress = Compress()
 
 
-def create_app():
+def create_app() -> FastAPI:
     """Create and setup Gens application."""
-    application = connexion.FlaskApp(__name__, specification_dir="openapi/")
-    application.add_api("openapi.yaml")
-    app = application.app
-    # configure app
-    app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
-    app.config.from_object("gens.config")
-    if os.environ.get("GENS_CONFIG") is None:
-        LOG.info("Using default Gens configuration")
-        LOG.debug("No user configuration set with $GENS_CONFIG environmental variable")
-    else:
-        app.config.from_envvar("GENS_CONFIG")
+    # application = connexion.FlaskApp(__name__, specification_dir="openapi/")
+    # application.add_api("openapi.yaml")
+    # setup fastapi app
+    fastapi_app = FastAPI(title="Gens")
+    add_api_routers(fastapi_app)
+
+    # create and configure flask frontend
+    flask_app: Flask = Flask(__name__)  # type: ignore
+    flask_app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+
     # initialize database and store db content
-    with app.app_context():
-        init_database()
+    with flask_app.app_context():
+        init_database_connection(flask_app)
     # connect to mongo client
-    app.config["DEBUG"] = True
-    app.config["SECRET_KEY"] = "pass"
+    flask_app.config["DEBUG"] = True
+    flask_app.config["SECRET_KEY"] = "pass"
 
     # prepare app context
-    initialize_extensions(app)
+    initialize_extensions(flask_app)
 
-    configure_extensions(app)
+    configure_extensions(flask_app)
 
     # register bluprints and errors
-    register_blueprints(app)
-    register_errors(app)
+    register_blueprints(flask_app)
 
-    @app.before_request
-    def check_user():
-        if app.config.get("LOGIN_DISABLED") or not request.endpoint:
-            return
+    @flask_app.before_request
+    def check_user() -> Flask | None | Response:  # type: ignore
+        """Check permission if page requires authentication."""
+        if settings.authentication == AuthMethod.DISABLED or not request.endpoint:
+            return None
 
         # check if the endpoint requires authentication
         static_endpoint = "static" in request.endpoint
-        public_endpoint = getattr(app.view_functions[request.endpoint], "is_public", False)
+        public_endpoint = getattr(
+            flask_app.view_functions[request.endpoint], "is_public", False
+        )
         relevant_endpoint = not (static_endpoint or public_endpoint)
         # if endpoint requires auth, check if user is authenticated
         if relevant_endpoint and not current_user.is_authenticated:
             # combine visited URL (convert byte string query string to unicode!)
-            next_url = "{}?{}".format(request.path, request.query_string.decode())
+            next_url = f"{request.path}?{request.query_string.decode()}"
             login_url = url_for("home.landing", next=next_url)
             return redirect(login_url)
 
+    # mount flask app to FastAPI app
+    fastapi_app.mount("/app", WsgiToAsgi(flask_app))
+    return fastapi_app
 
-    return app
+
+def add_api_routers(app: FastAPI):
+    app.include_router(base.router)
+    app.include_router(sample.router)
+    app.include_router(annotations.router)
+    app.include_router(sample_annotations.router)
+    app.include_router(gene_lists.router)
 
 
-def initialize_extensions(app):
+def initialize_extensions(app: Flask) -> None:
     """Initialize flask extensions."""
-    cache.init_app(app)
     compress.init_app(app)
     login_manager.init_app(app)
 
 
-def configure_extensions(app):
-    # configure extensions
-    if app.config.get("GOOGLE"):
+def configure_extensions(app: Flask) -> None:
+    """configure app extensions."""
+    if settings.authentication == AuthMethod.OAUTH:
         LOG.info("Google login enabled")
         # setup connection to google oauth2
         configure_oauth_login(app)
 
 
-def configure_oauth_login(app):
+def configure_oauth_login(app: Flask) -> None:
     """Register the Google Oauth2 login client using config settings"""
-
-    google_conf = app.config["GOOGLE"]
-    discovery_url = google_conf.get("discovery_url")
-    client_id = google_conf.get("client_id")
-    client_secret = google_conf.get("client_secret")
 
     oauth_client.init_app(app)
 
+    oauth_settings = settings.oauth
+    if oauth_settings is None:
+        raise ValueError("OAuth settings must be present for Oauth login to work")
+
     oauth_client.register(
         name="google",
-        server_metadata_url=discovery_url,
-        client_id=client_id,
-        client_secret=client_secret,
+        server_metadata_url=str(oauth_settings.discovery_url),
+        client_id=oauth_settings.client_id,
+        client_secret=oauth_settings.secret,
         client_kwargs={"scope": "openid email profile"},
     )
 
 
-def register_errors(app):
+def register_errors(app: Flask) -> None:
     """Register error pages for gens app."""
     app.register_error_handler(SampleNotFoundError, sample_not_found)
     app.register_error_handler(404, generic_abort_error)
@@ -132,7 +146,7 @@ def register_errors(app):
     app.register_error_handler(Exception, generic_exception_error)
 
 
-def register_blueprints(app):
+def register_blueprints(app: Flask) -> None:
     """Register blueprints."""
     app.register_blueprint(gens_bp)
     app.register_blueprint(home_bp)
