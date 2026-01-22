@@ -120,13 +120,10 @@ def login() -> Response:
         flash("Unable to log in with the provided credentials", "warning")
         return redirect(url_for("home.landing"))
 
-    LOG.info(f"Debug: attempt to get user {user_mail}")
-
     db: Database[Any] = current_app.config["GENS_DB"]
     user_col = db.get_collection(USER_COLLECTION)
     user_obj = get_user(user_col, user_mail)  # type: ignore
 
-    LOG.info(f"Got user obj {user_obj}")
     if user_obj is None:
         flash("User not found in Scout database", "warning")
         return redirect(url_for("home.landing"))
@@ -148,8 +145,6 @@ def authorized() -> Response:
     session["email"] = google_user.get("email").lower()
     session["name"] = google_user.get("name")
     session["locale"] = google_user.get("locale")
-
-    LOG.info(f"Authorized - oauth google: {oauth_google} google_user: {google_user} session: {session}" )
 
     return redirect(url_for(".login"))
 
