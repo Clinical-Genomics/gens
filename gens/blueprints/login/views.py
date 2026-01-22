@@ -90,7 +90,6 @@ def login() -> Response:
             user_mail = session["email"]
             session.pop("email", None)
         else:
-
             LOG.info("Google Login!")
             redirect_uri = url_for(".authorized", _external=True)
             try:
@@ -145,6 +144,8 @@ def authorized() -> Response:
     session["email"] = google_user.get("email").lower()
     session["name"] = google_user.get("name")
     session["locale"] = google_user.get("locale")
+
+    LOG.info(f"Authorized - oauth google: {oauth_google}" )
 
     return redirect(url_for(".login"))
 
