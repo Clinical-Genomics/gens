@@ -120,6 +120,8 @@ def login() -> Response:
         flash("Unable to log in with the provided credentials", "warning")
         return redirect(url_for("home.landing"))
 
+    LOG.info(f"Debug: attempt to get user {user_mail}")
+
     db: Database[Any] = current_app.config["GENS_DB"]
     user_col = db.get_collection(USER_COLLECTION)
     user_obj = get_user(user_col, user_mail)  # type: ignore
