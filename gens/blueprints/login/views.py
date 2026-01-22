@@ -145,7 +145,7 @@ def authorized() -> Response:
     session["name"] = google_user.get("name")
     session["locale"] = google_user.get("locale")
 
-    LOG.info(f"Authorized - oauth google: {oauth_google}" )
+    LOG.info(f"Authorized - oauth google: {oauth_google} google_user: {google_user} session: {session}" )
 
     return redirect(url_for(".login"))
 
