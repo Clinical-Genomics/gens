@@ -125,6 +125,8 @@ def login() -> Response:
     db: Database[Any] = current_app.config["GENS_DB"]
     user_col = db.get_collection(USER_COLLECTION)
     user_obj = get_user(user_col, user_mail)  # type: ignore
+
+    LOG.info(f"Got user obj {user_obj}")
     if user_obj is None:
         flash("User not found in Scout database", "warning")
         return redirect(url_for("home.landing"))
