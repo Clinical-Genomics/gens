@@ -190,7 +190,7 @@ def get_sample(
         "case_id": case_id,
     }
     if genome_build is not None:
-        sample_filter["genome_build"] = genome_build
+        sample_filter["genome_build"] = { f"$in: [{genome_build},'{genome_build}']" }
 
     result = samples_c.find_one(sample_filter)
 
