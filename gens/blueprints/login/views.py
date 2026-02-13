@@ -143,9 +143,6 @@ def login() -> Response:
         if oauth_email:
             user_mail = normalize_email(str(oauth_email))
         else:
-<<<<<<< HEAD
-            LOG.info("Google Login!")
-=======
             oauth_google = oauth_client.google
             if oauth_google is None:
                 discovery_url = (
@@ -163,7 +160,6 @@ def login() -> Response:
                 return redirect(url_for("home.landing"))
 
             LOG.info("Initiating OAuth login")
->>>>>>> lund/dev
             redirect_uri = url_for(".authorized", _external=True)
             try:
                 return oauth_google.authorize_redirect(  # type: ignore
@@ -211,12 +207,6 @@ def login() -> Response:
         flash("Unable to log in with the provided credentials", "warning")
         return redirect(url_for("home.landing"))
 
-<<<<<<< HEAD
-    db: Database[Any] = current_app.config["GENS_DB"]
-    user_col = db.get_collection(USER_COLLECTION)
-    user_obj = get_user(user_col, user_mail)  # type: ignore
-
-=======
     user_db = get_user_database()
     if user_db is None:
         flash(
@@ -230,7 +220,6 @@ def login() -> Response:
 
     user_col = user_db.get_collection(settings.auth_user_collection or USER_COLLECTION)
     user_obj = get_user(user_col, user_mail)
->>>>>>> lund/dev
     if user_obj is None:
         flash(
             f"User '{user_mail}' does not exist in the configured user database.",
