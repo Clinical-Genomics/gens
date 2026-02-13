@@ -45,6 +45,7 @@ export const ICONS = {
   hide: "fa-eye-slash",
   info: "fa-table-cells",
   left: "fa-arrow-left",
+  linkout: "fa-arrow-up-right-from-square",
   marker: "fa-marker",
   minus: "fa-minus",
   play: "fa-play",
@@ -85,7 +86,7 @@ export const TRACK_IDS = {
   annot: "annot",
 };
 
-export const PROFILE_SETTINGS_VERSION = 2;
+export const PROFILE_SETTINGS_VERSION = 3;
 
 export const COLORS = {
   white: "#FFFFFF",

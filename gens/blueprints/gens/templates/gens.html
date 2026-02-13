@@ -74,9 +74,10 @@
     // and pass flask values to tracks
     gens.initCanvases({
         caseId: '{{ case_id }}',
+        displayCaseId: {{ display_case_id | tojson }},
         sampleIds: {{ sample_ids | safe }},
         genomeBuild: {{ genome_build | safe }},
-        variantSoftwareBaseURL: {{ variant_software_base_url | default(None) | string | tojson }},
+        variantSoftwareBaseURL: {{ variant_software_base_url | tojson }},
         selectedVariant: '{{ selected_variant }}',
         startRegion: {
             chrom: String(chromJs),
