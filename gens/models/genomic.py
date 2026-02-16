@@ -25,6 +25,8 @@ class DnaStrand(str, Enum):  # TODO migrate to +/-
 
     @classmethod
     def _from_legacy(cls, v):
+        if isinstance(v, bool):
+            return v
         if v in (1, "+"):
             return cls.FOR
         if v in (-1, "-"):
