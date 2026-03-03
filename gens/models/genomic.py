@@ -3,7 +3,11 @@
 import re
 from enum import Enum, IntEnum, StrEnum
 
+<<<<<<< HEAD
 from pydantic import computed_field, field_validator, GetCoreSchemaHandler
+=======
+from pydantic import GetCoreSchemaHandler, computed_field, field_validator
+>>>>>>> lund/master
 from pydantic.types import PositiveFloat, PositiveInt
 from pydantic_core import core_schema
 
@@ -26,19 +30,15 @@ class DnaStrand(str, Enum):  # TODO migrate to +/-
     @classmethod
     def _from_legacy(cls, v):
         if isinstance(v, bool):
-            return v
+            return cls.FOR if v else cls.REV
         if v in (1, "+"):
             return cls.FOR
         if v in (-1, "-"):
             return cls.REV
-        if v in (0, ".", None):
-            return cls.UNKNOWN
-        return v
+        return cls.UNKNOWN if v in (0, ".", None) else v
 
     @classmethod
-    def __get_pydantic_core_schema__(
-        cls, source_type, handler: GetCoreSchemaHandler
-    ):
+    def __get_pydantic_core_schema__(cls, source_type, handler: GetCoreSchemaHandler):
         enum_schema = handler(source_type)
 
         return core_schema.no_info_before_validator_function(
@@ -94,6 +94,10 @@ class VariantCategory(StrEnum):
     STRUCTURAL = "str"
     SINGLE_VAR = "sv"
     SINGLE_NT_VAR = "snv"
+    CANCER_SNV = "cancer"
+    CANCER_SV = "cancer_sv"
+    MOBILE_ELEMENT = "mei"
+    FUSION = "fusion"
 
 
 class VariantSubCategory(StrEnum):
