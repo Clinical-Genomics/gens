@@ -3,11 +3,7 @@
 import re
 from enum import Enum, IntEnum, StrEnum
 
-<<<<<<< HEAD
 from pydantic import computed_field, field_validator, GetCoreSchemaHandler
-=======
-from pydantic import GetCoreSchemaHandler, computed_field, field_validator
->>>>>>> lund/master
 from pydantic.types import PositiveFloat, PositiveInt
 from pydantic_core import core_schema
 
