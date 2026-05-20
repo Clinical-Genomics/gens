@@ -1,1 +1,1 @@
-from .views import login_bp
+"""Views and assets related to login."""

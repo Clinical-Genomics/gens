@@ -1,12 +1,17 @@
 # other
+.vscode/
 *~
 \#*
+*.sif
 tags
 coverage
 *.aed
 dump/
-frontend/
 docker-compose.override.yml
+!tests/fixtures/*.aed
+!tests/fixtures/*.bed
+*Identifier
+.venv/
 
 # python
 *.pyc
@@ -17,9 +22,11 @@ utils/Homo_sapiens.GRCh38.99.gtf
 utils/MANE.GRCh38.v0.8.summary.txt
 utils/hg38_annotations/
 venv/
+tests/__pycache__/
 *.egg-info
 .eggs
 .idea
+__pycache__
 
 # node
 node_modules
@@ -42,3 +49,6 @@ gens/static/css/*
 !gens/static/css/.gitkeep
 *.min.css
 *.min.js
+*.map
+frontend/**/*.js
+

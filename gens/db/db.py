@@ -1,38 +1,68 @@
 """Functions for handeling database connection."""
+
 import logging
-import os
+from typing import Any, Generator
 
-from flask import current_app as app
+from fastapi import HTTPException
+from flask import Flask
+from pydantic import MongoDsn
 from pymongo import MongoClient
+from pymongo.database import Database
 
-from gens.exceptions import ConfigurationException
+from gens.adapters.base import InterpretationAdapter
+from gens.adapters.null import NullInterpretationAdapter
+from gens.adapters.scout import ScoutMongoAdapter
+from gens.config import settings
 
 LOG = logging.getLogger(__name__)
 
 
-def _get_config_var(name: str, app: app) -> str:
-    """Get application configuration variable.
-
-    Variables set as environment overrides variables defined in the configfile."""
-    if not any([name in os.environ, name in app.config]):
-        raise ConfigurationException(f"{name} not defined")
-    return
-
-
-def init_database_connection() -> None:
+def init_database_connection(app: Flask) -> None:
     """Initialize database connection and store variables to the two databases."""
-    # verify that database was properly configured
+
     LOG.info("Initialize db connection")
-    variables = {}
-    for var_name in ["MONGODB_SCOUT_URI", "MONGODB_GENS_URI", "SCOUT_DBNAME", "GENS_DBNAME"]:
-        if not any([var_name in os.environ, var_name in app.config]):
-            raise ConfigurationException(
-                f"Variable {var_name} not defined in either config or env variable"
-            )
-        variables[var_name] = os.environ.get(var_name, app.config.get(var_name))
-    # connect to database
-    scout_client = MongoClient(variables["MONGODB_SCOUT_URI"])
-    gens_client = MongoClient(variables["MONGODB_GENS_URI"])
-    # store db handlers in configuration
-    app.config["SCOUT_DB"] = scout_client[variables["SCOUT_DBNAME"]]
-    app.config["GENS_DB"] = gens_client[variables["GENS_DBNAME"]]
+
+    app.config["GENS_DB"] = MongoClient(str(settings.gens_db.connection)).get_database(
+        name=settings.gens_db.database
+    )
+    if settings.variant_db is not None:
+        app.config["VARIANT_DB"] = MongoClient(
+            str(settings.variant_db.connection)
+        ).get_database(name=settings.variant_db.database)
+
+
+def get_db_connection(mongo_uri: MongoDsn, db_name: str) -> Database[Any]:
+    """Get database connection."""
+    db: Database[Any] = MongoClient(str(mongo_uri)).get_database(name=db_name)
+    return db
+
+
+def get_gens_db() -> Generator[Database[Any], None, None]:
+    """Connect to the Gens database."""
+    client: MongoClient[Any] = MongoClient(str(settings.gens_db.connection))
+    try:
+        yield client.get_database(settings.gens_db.database)
+    finally:
+        client.close()
+
+
+def get_variant_software_adapter() -> Generator[InterpretationAdapter, None, None]:
+    """Return the configured interpretation adapter."""
+
+    if not settings.variant_db:
+        yield NullInterpretationAdapter()
+        return
+
+    if settings.variant_software_backend != "scout_mongo":
+        raise HTTPException(
+            status_code=503,
+            detail=f"Unsupported variant software backend: {settings.variant_software_backend}",
+        )
+
+    client: MongoClient[Any] = MongoClient(str(settings.variant_db.connection))
+
+    try:
+        db = client.get_database(settings.variant_db.database)
+        yield ScoutMongoAdapter(db)
+    finally:
+        client.close()

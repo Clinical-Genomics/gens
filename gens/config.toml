@@ -1,0 +1,45 @@
+#variant_url = "http://localhost:8000"
+authentication = "disabled"
+gens_api_url = "http://localhost:5000/api/"
+main_sample_types = ["proband", "tumor"]
+# Login session lifetime in seconds (default: 86400 = 1 day)
+# login_session_lifetime = 86400
+
+[gens_db]
+connection = "mongodb://mongodb:27017/gens"
+# If running on localhost, change to the following
+# connection = "mongodb://localhost:27017/gens"
+
+[variant_db]
+connection = "mongodb://mongodb:27017/scout"
+# If running on localhost, change to the following
+# connection = "mongodb://localhost:27017/gens"
+
+[default_profile_paths]
+"proband" = "example_profiles/Gens_Singel-default-settings.json"
+"proband+relative" = "example_profiles/Gens_Trio-default-settings.json"
+
+[[warning_thresholds]]
+column = "Estimated chromosomal copy numbers"
+kind = "estimated_chromosome_count_deviate"
+max_deviation = 0.1
+message = "Exceeds max copy number deviation"
+
+[[warning_thresholds]]
+column = "Mismatch father"
+kind = "threshold_above"
+size = 200
+message = "Exceeds max mismatch count"
+
+[[warning_thresholds]]
+column = "Mismatch mother"
+kind = "threshold_above"
+size = 200
+message = "Exceeds max mismatch count"
+ignore_when = { sex = "M", chromosome = "X" }
+
+# Example LDAP authentication configuration
+[ldap]
+server = "ldap://ldap.example.com"
+# If users log in with email and LDAP DN is uid-based:
+bind_user_template = "uid={uid},ou=people,dc=example,dc=com"
