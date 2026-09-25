@@ -83,7 +83,7 @@ CMD gunicorn -k uvicorn.workers.UvicornWorker \
     --timeout=$GUNICORN_TIMEOUT \
     --chdir /home/worker/ \
     --proxy-protocol \
-    --forwarded-allow-ips="10.0.2.100,127.0.0.1" \
+    --forwarded-allow-ips=$GUNICORN_ALLOWED_IPS \
     --access-logfile - \
     --error-logfile - \
     --log-level="warning" \
