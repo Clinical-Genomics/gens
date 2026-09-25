@@ -10,6 +10,7 @@ About changelog [here](https://keepachangelog.com/en/1.0.0/)
 ### Fixed
 
 - GitHub actions automation [Solna #137](https://github.com/Clinical-Genomics/gens/pull/137)
+- Docker image gunicorn allowed IPs [Solna #138](https://github.com/Clinical-Genomics/gens/pull/138)
 
 ## 4.6.1
 
